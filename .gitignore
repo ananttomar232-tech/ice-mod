@@ -1,0 +1,12 @@
+# Gradle / IDE output of the generated project
+ice_age_yantra/.gradle/
+ice_age_yantra/build/
+ice_age_yantra/run/
+ice_age_yantra/run-data/
+ice_age_yantra/out/
+ice_age_yantra/bin/
+ice_age_yantra/.idea/
+ice_age_yantra/*.iml
+__pycache__/
+*.pyc
+.DS_Store
