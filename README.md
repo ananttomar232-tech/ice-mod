@@ -139,3 +139,7 @@ most 2 times (`/iceage counter reset` resets that).
 * **Shop**: 31x13x31 packed-ice hall in the Overworld at X 10000 / Y 120 / Z 10000. Village Portal saves `IcePortalReturnPos`;
   the Exit Portal returns you to solid ground. Same dimension, no loading screen. The portal item shows the swirling blue centre.
 * Commands (op): `/iceage portal | shop | setup | rebuildshop | gotiya | counter reset|set <n>|speed <x>`.
+* **Cinematic (`#cinematic`)**: type it in chat inside the Ice Shop. The HUD is hidden and controls locked while the
+  camera orbits each of the five pedestals (360 degrees, eased), glides to a high overhead shot of the whole shop with
+  you in it (held 4 s), then returns to your view and restores HUD and controls. ESC cancels it at any time. Client-only,
+  no mixins (`client/CinematicCamera.java`).
