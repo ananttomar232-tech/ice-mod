@@ -2609,6 +2609,23 @@ def gui_hud_panel(w=420, h=64):
     return clamp(img)
 
 
+def gui_counter_bar(w=600, h=96):
+    """Dark rounded counter bar with a bevelled grey frame (top-centre HUD)."""
+    Y, X = grid(h, w)
+    img = np.zeros((h, w, 4))
+    d = sdf_round_rect(h, w, w / 2, h / 2, w / 2 - 2, h / 2 - 2, 16)
+    img[..., :3] = ramp(Y, [(0, '#2a2d31'), (1, '#16181b')]) * (0.96 + 0.06 * fbm(h, w, 8, 3, 561, wrap=False)[..., None])
+    outer = fill(np.abs(d + 4) - 4, 1.0)
+    frame = ramp(Y, [(0, '#b9bec4'), (0.5, '#80868d'), (1, '#4c5157')])
+    img[..., :3] = lerp(img[..., :3], frame, outer)
+    inner = fill(np.abs(d + 10) - 1.5, 1.0)
+    img[..., :3] = lerp(img[..., :3], hexc('#0b0c0e'), inner * 0.9)
+    shine = fill(np.abs(d + 13) - 1.0, 1.0) * smoothstep(0.5, 0.2, Y)
+    img[..., :3] = lerp(img[..., :3], hexc('#3c4047'), shine * 0.8)
+    img[..., 3] = fill(d, 1.0) * 0.95
+    return clamp(img)
+
+
 def gui_ice_cube(size=128):
     h = w = size
     img = np.zeros((h, w, 4))
@@ -2746,7 +2763,7 @@ def all_textures():
         'gui/shop_panel': lambda: gui_panel(512, 320), 'gui/card': gui_card,
         'gui/button_normal': lambda: gui_button(state='normal'), 'gui/button_hover': lambda: gui_button(state='hover'),
         'gui/button_locked': lambda: gui_button(state='locked'), 'gui/button_owned': lambda: gui_button(state='owned'),
-        'gui/hud_panel': gui_hud_panel, 'gui/ice_cube': gui_ice_cube, 'gui/remote_lcd': gui_remote_lcd,
+        'gui/hud_panel': gui_hud_panel, 'gui/counter_bar': gui_counter_bar, 'gui/ice_cube': gui_ice_cube, 'gui/remote_lcd': gui_remote_lcd,
         'gui/progress': gui_progress,
         'item/chill_villager_spawn_egg': tex_chill_villager_egg, 'item/ice_cream_van_spawn_egg': tex_van_egg,
     }
@@ -5813,17 +5830,23 @@ public final class GuiTex {
 '''
 JAVA_SOURCES['src/main/java/com/iceage/yantra/client/gui/IcePointsOverlay.java'] = r'''package com.iceage.yantra.client.gui;
 
+import com.iceage.yantra.IceAgeYantra;
 import com.iceage.yantra.client.ClientProgress;
-import com.iceage.yantra.progress.Tier;
+import com.iceage.yantra.entity.IceCreamTruckEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraftforge.client.gui.overlay.ForgeGui;
 
-/** Top-centre live counter: "BLOCKS FROZEN: [current] / 10,000,000" with odometer digits, ding and +N pops. */
+/**
+ * Top-left frozen-blocks counter: dark bevelled bar, ice cube icon, rolling odometer number
+ * (" / 10,000,000"), and the live multiplier on the right (van combo while driving, otherwise x1.0).
+ */
 public final class IcePointsOverlay {
+    private static final ResourceLocation BAR = IceAgeYantra.id("textures/gui/counter_bar.png");
+
     private IcePointsOverlay() {
     }
 
@@ -5832,59 +5855,52 @@ public final class IcePointsOverlay {
         if (mc.options.hideGui || mc.player == null) return;
         Font font = mc.font;
         double shown = Mth.lerp(pt, ClientProgress.prevDisplayed, ClientProgress.displayed);
-        String label = "BLOCKS FROZEN: ";
+
+        float mult = 1.0f;
+        if (mc.player.getVehicle() instanceof IceCreamTruckEntity van) mult = van.combo();
+        String multText = String.format("x%.1f", mult);
         String total = " / 10,000,000";
+
         int numW = font.width(String.format("%,d", (long) Math.floor(shown)));
-        int textW = font.width(label) + numW + font.width(total);
-        int panelW = Math.max(236, textW + 44);
-        int panelH = 38;
-        int x = (width - panelW) / 2;
-        int y = 3;
+        int barW = Math.max(200, 30 + numW + font.width(total) + 16 + font.width(multText) + 12);
+        int barH = 24;
+        int x = 4;
+        int y = 4;
+
         float pop = Math.max(0f, (ClientProgress.pop - pt) / 8f);
-        float s = 1f + 0.07f * pop;
+        float s = 1f + 0.05f * pop;
         g.pose().pushPose();
-        g.pose().translate(width / 2f, y + panelH / 2f, 0);
+        g.pose().translate(x + barW / 2f, y + barH / 2f, 0);
         g.pose().scale(s, s, 1f);
-        g.pose().translate(-width / 2f, -(y + panelH / 2f), 0);
-        GuiTex.blitFull(g, GuiTex.HUD_PANEL, x, y, panelW, panelH, 420, 64);
+        g.pose().translate(-(x + barW / 2f), -(y + barH / 2f), 0);
+        GuiTex.blitFull(g, BAR, x, y, barW, barH, 600, 96);
         g.pose().popPose();
 
+        // ice cube icon
         float t = mc.player.tickCount + pt;
         g.pose().pushPose();
-        g.pose().translate(x + 17, y + 13, 0);
-        float bob = 1f + 0.06f * Mth.sin(t * 0.12f) + 0.15f * pop;
+        g.pose().translate(x + 15, y + barH / 2f, 0);
+        float bob = 1f + 0.05f * Mth.sin(t * 0.12f) + 0.15f * pop;
         g.pose().scale(bob, bob, 1f);
-        GuiTex.blitFull(g, GuiTex.ICE_CUBE, -10, -10, 20, 20, 128, 128);
+        GuiTex.blitFull(g, GuiTex.ICE_CUBE, -9, -9, 18, 18, 128, 128);
         g.pose().popPose();
 
-        int tx = x + 32;
-        int ty = y + 7;
-        g.drawString(font, label, tx, ty, 0xBFEFFF, true);
-        int numColor = pop > 0 ? 0xFFFFFF : 0x7FE6FF;
-        int w = GuiTex.rolling(g, font, shown, tx + font.width(label), ty, numColor);
-        g.drawString(font, total, tx + font.width(label) + w, ty, 0x8FB8D8, true);
+        int ty = y + (barH - 8) / 2;
+        int nx = x + 30;
+        int numColor = pop > 0 ? 0xBFF6FF : 0xFFFFFF;
+        int w = GuiTex.rolling(g, font, shown, nx, ty, numColor);
+        g.drawString(font, total, nx + w, ty, 0x7F8890, true);
 
-        long pts = ClientProgress.points;
-        long[] win = GuiTex.window(pts);
-        double frac = win[1] == win[0] ? 1 : (shown - win[0]) / (double) (win[1] - win[0]);
-        int barX = x + 32, barW = panelW - 44, barY = y + 20;
-        GuiTex.bar(g, barX, barY, barW, 6, frac);
-        Tier next = Tier.byNumber((int) win[2]);
-        String sub = next == null ? "ICE AGE COMPLETE!" : Component.translatable("hud.ice_age_yantra.next", next.displayName(), String.format("%,d", next.target)).getString();
-        g.pose().pushPose();
-        g.pose().translate(barX + barW / 2f, barY + 8, 0);
-        g.pose().scale(0.6f, 0.6f, 1f);
-        g.drawString(font, sub, -font.width(sub) / 2, 0, 0xD6F3FF, true);
-        g.pose().popPose();
+        int multColor = mult > 1.0f ? 0x7FE6FF : 0xFFFFFF;
+        g.drawString(font, multText, x + barW - 10 - font.width(multText), ty, multColor, true);
 
         for (ClientProgress.Floater f : ClientProgress.FLOATERS) {
             float a = 1f - (f.age + pt) / 30f;
-            if (a <= 0) continue;
             int alpha = (int) (a * 255) & 0xFF;
-            if (alpha < 8) continue;
+            if (a <= 0 || alpha < 8) continue;
             String txt = "+" + String.format("%,d", f.amount);
-            float fx = x + panelW - 30 + f.x * 26;
-            float fy = y + panelH - 4 + (f.age + pt) * 0.9f;
+            float fx = x + barW / 2f + (f.x - 0.5f) * 60;
+            float fy = y + barH + 2 + (f.age + pt) * 0.8f;
             g.pose().pushPose();
             g.pose().translate(fx, fy, 0);
             g.pose().scale(0.8f, 0.8f, 1f);
