@@ -13,7 +13,6 @@ import net.minecraft.entity.Entity;
 import net.minecraft.client.network.OtherClientPlayerEntity;
 import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.decoration.ArmorStandEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
@@ -91,14 +90,14 @@ public final class CinematicCamera {
             mc.player.sendMessage(Text.literal("Go to the Ice Shop first, then type #cinematic"), true);
             return;
         }
-        double[] eye = orbitPose(0, 0.0);   // fixed opening shot: never depends on where the player is looking
+        double[] eye = spinPose(0.0);   // fixed opening shot: never depends on where the player is looking
         savedYaw = mc.player.getYaw();
         savedPitch = mc.player.getPitch();
         oldHudHidden = mc.options.hudHidden;
         oldPerspective = mc.options.getPerspective();
         mc.options.hudHidden = true;
         mc.options.setPerspective(Perspective.FIRST_PERSON);
-        camEntity = new ArmorStandEntity(mc.world, eye[0], eye[1], eye[2]);
+        camEntity = new net.minecraft.entity.MarkerEntity(net.minecraft.entity.EntityType.MARKER, mc.world);
         final net.minecraft.client.network.ClientPlayerEntity real = mc.player;
         // own UUID (the world refuses a second entity with the player's UUID), but the real player's skin and model
         double_ = new OtherClientPlayerEntity(mc.world, new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), real.getGameProfile().getName())) {
@@ -232,10 +231,13 @@ public final class CinematicCamera {
     private static List<Seg> buildSequence(MinecraftClient mc) {
         List<Seg> list = new ArrayList<>();
         BlockPos[] show = ShopBuilder.SHOWCASES;
+        // opening: one full spin around the whole shop (7 s), high angle, always from the same starting point
+        list.add(new Seg(7.0, (s, u) -> spinPose(u)));
         for (int i = 0; i < show.length; i++) {
             final int idx = i;
             // glide to the start of the orbit
-            if (i > 0) list.add(new Seg(1.6, (s, u) -> blend(s, orbitPose(idx, 0.0), cubic(u))));
+            // glide to the start of the orbit (longer after the opening spin)
+            list.add(new Seg(i == 0 ? 2.2 : 1.6, (s, u) -> blend(s, orbitPose(idx, 0.0), cubic(u))));
             // the 360-degree orbit: 3.5 s per Yantra, 4 s for the van
             list.add(new Seg(i == 4 ? 4.0 : 3.5, (s, u) -> orbitPose(idx, u)));
         }
@@ -263,6 +265,17 @@ public final class CinematicCamera {
         double x = c[0] + Math.cos(a) * radius, z = c[2] + Math.sin(a) * radius;
         double y = c[1] + 0.15;   // item level
         return lookAt(x, y, z, c[0], c[1], c[2]);
+    }
+
+    /** The whole-shop spin: a full 360 degrees around the middle of the hall, looking at its centre. */
+    private static double[] spinPose(double u) {
+        // circle centred on the hall (inner space is +-14 blocks), looking at the middle of the pedestals
+        double ccx = ShopBuilder.CX + 0.5, ccz = ShopBuilder.CZ + 0.5;
+        double a = -Math.PI / 2 + Math.PI * 2 * orbitEase(u);   // starts on the south side of the hall
+        double radius = 12.0;
+        double x = ccx + Math.cos(a) * radius, z = ccz + Math.sin(a) * radius;
+        double y = ShopBuilder.FLOOR + 8.5;
+        return lookAt(x, y, z, ccx, ShopBuilder.FLOOR + 1.8, ShopBuilder.CZ + 2.5);
     }
 
     private static double[] overheadPose(MinecraftClient mc, double u) {
