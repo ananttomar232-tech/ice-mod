@@ -1,0 +1,9 @@
+newmtl gola_enamel
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #gola_enamel
+
+newmtl gola_chrome
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #gola_chrome

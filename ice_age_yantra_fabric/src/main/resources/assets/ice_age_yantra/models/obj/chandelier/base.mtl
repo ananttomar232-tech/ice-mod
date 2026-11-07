@@ -1,0 +1,14 @@
+newmtl chandelier_metal
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #chandelier_metal
+
+newmtl chandelier_ice
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #chandelier_ice
+
+newmtl chandelier_glow
+Kd 1.0 1.0 1.0 1.0
+Ka 1.0 1.0 1.0 1.0
+map_Kd #chandelier_glow

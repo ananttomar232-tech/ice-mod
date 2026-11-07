@@ -10,3 +10,8 @@ ice_age_yantra/*.iml
 __pycache__/
 *.pyc
 .DS_Store
+ice_age_yantra_fabric/.gradle/
+ice_age_yantra_fabric/build/
+ice_age_yantra_fabric/run/
+ice_age_yantra_fabric/.idea/
+ice_age_yantra_fabric/*.iml

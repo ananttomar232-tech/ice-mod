@@ -1,0 +1,9 @@
+{
+  "multipart": [
+    {
+      "apply": {
+        "model": "ice_age_yantra:block/farrata_fan"
+      }
+    }
+  ]
+}

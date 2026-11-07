@@ -1,0 +1,29 @@
+newmtl fridge_main
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fridge_main
+
+newmtl fridge_back
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fridge_back
+
+newmtl fridge_liner
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fridge_liner
+
+newmtl fridge_freezer
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fridge_freezer
+
+newmtl fridge_gasket
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fridge_gasket
+
+newmtl fridge_light
+Kd 1.0 1.0 1.0 1.0
+Ka 1.0 1.0 1.0 1.0
+map_Kd #fridge_light

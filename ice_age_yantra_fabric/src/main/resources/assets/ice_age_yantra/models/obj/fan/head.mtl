@@ -1,0 +1,14 @@
+newmtl fan_chrome
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fan_chrome
+
+newmtl fan_badge_ring
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fan_badge_ring
+
+newmtl fan_body
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fan_body

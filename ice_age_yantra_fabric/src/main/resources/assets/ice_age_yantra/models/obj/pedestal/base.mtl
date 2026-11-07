@@ -1,0 +1,9 @@
+newmtl pedestal_ice
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #pedestal_ice
+
+newmtl pedestal_glow
+Kd 1.0 1.0 1.0 1.0
+Ka 1.0 1.0 1.0 1.0
+map_Kd #pedestal_glow

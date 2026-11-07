@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "ice_age_yantra",
+  "version": "${version}",
+  "name": "Ice Age Yantra",
+  "description": "Freeze the world with comedic Yantras, an Ice Cream Van and one very hot-headed villager.",
+  "authors": ["Ice Age Yantra"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.iceage.yantra.IceAgeYantra"],
+    "client": ["com.iceage.yantra.client.IceAgeYantraClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.14.22",
+    "minecraft": "~1.20.1",
+    "java": ">=17",
+    "fabric-api": "*"
+  }
+}

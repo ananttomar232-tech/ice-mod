@@ -1,0 +1,4 @@
+newmtl truck_paint
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #truck_paint
