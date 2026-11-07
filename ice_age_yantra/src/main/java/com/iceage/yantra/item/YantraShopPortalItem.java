@@ -55,7 +55,7 @@ public class YantraShopPortalItem extends Item {
         if (ctx.getClickedFace() != Direction.UP) base = ctx.getClickedPos().above();
         if (!level.getBlockState(base).canBeReplaced() || !level.getBlockState(base.above()).canBeReplaced()) {
             if (!level.isClientSide) {
-                player.displayClientMessage(Component.translatable("msg.ice_age_yantra.portal.no_space").withStyle(ChatFormatting.RED), true);
+                
             }
             return InteractionResult.FAIL;
         }
@@ -66,7 +66,6 @@ public class YantraShopPortalItem extends Item {
             level.setBlock(base, lower, Block.UPDATE_ALL);
             level.setBlock(base.above(), lower.setValue(IcePortalBlock.HALF, DoubleBlockHalf.UPPER), Block.UPDATE_ALL);
             level.playSound(null, base, ModSounds.PORTAL_WHOOSH.get(), SoundSource.BLOCKS, 1.2f, 0.8f);
-            player.displayClientMessage(Component.translatable("msg.ice_age_yantra.portal.placed").withStyle(ChatFormatting.AQUA), true);
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
     }

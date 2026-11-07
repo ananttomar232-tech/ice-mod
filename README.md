@@ -1,8 +1,10 @@
 # Ice Age Yantra Mod (`ice_age_yantra`), Forge 1.20.1
 
 Freeze the whole world with five comedic machines (Yantras), built for an escalating "MrBeast / ProBoiz"
-style video. Every Yantra freezes blocks for you and **switches itself off the moment you can afford the
-next one**, so the video paces itself from 0 to **10,000,000 BLOCKS FROZEN**.
+style video. Every Yantra freezes blocks for you and pauses once you can afford the next one, so the video paces
+itself from 0 to **10,000,000 BLOCKS FROZEN**. Every Yantra stays reusable: use it again any time for
+another run. The screen stays clean: no banners and no chat spam, only the top-left counter and Gotiya's
+lines of dialogue.
 
 The single file `build_ice_age_mod.py` generates the complete Forge MDK project: Java sources, blockstates,
 OBJ rigs converted from the five 3D models in `source_models/` (with baked ambient-occlusion shading),
@@ -45,23 +47,24 @@ with the five model zips (default `./source_models`). A full generation takes ab
 ## How to play / film it
 
 1. **Spawn.** You get the **Yantra Shop Portal** in hotbar slot 0. Right-click it anywhere to open the 3D
-   **Yantra Progression Shop**. The live HUD at the top centre shows
-   `BLOCKS FROZEN: [current] / 10,000,000` with rolling odometer digits, a ding and "+N" pop-ups.
+   **Yantra Progression Shop**. The live counter in the top-left corner shows
+   `[current] / 10,000,000` with rolling odometer digits, a ding, one floating "+N" and the live multiplier.
 2. **Buy** a Yantra in the shop GUI, or physically in the **Frozen Showroom**: walk through an Ice Portal
-   (sneak + right-click a block with the Shop Portal to conjure one, or use `/iceage setup`). Right-click a
-   pedestal to buy the Yantra floating above it.
-3. Each Yantra stops by itself exactly when the next one is unlocked:
+   (sneak + right-click a block with the Shop Portal to conjure one, or use `/iceage setup`). There is no
+   loading screen. You arrive on the solid arrival pad (X 0.5, Y 65, Z 0.5), and walking back out puts you
+   on the ground in front of your portal. Right-click a pedestal to buy the Yantra floating above it.
+3. Each run of a Yantra pauses when the next one is unlocked. Use it again for another run:
 
 | Tier | Yantra | Price | Stops at | What happens |
 |---|---|---|---|---|
-| 1 | Desi Baraf Gola Machine | free | 25 | Right-click twice to crank. The handle snaps off with a cartoon *POP*, the wheel keeps spinning on its own and shoots crushed ice at the 25 surrounding blocks (slippery ice). It sputters smoke and squeaks when done. |
-| 2 | Farrata Table Fan | 25 | 150 | Right-click for SPEED 3: roaring frost wind freezes a 15-block cone and gently nudges you 2-3 blocks back. |
-| 3 | Retro Fridge | 150 | 1,000 | Right-click to open: freezing fog, launched ice blocks, and a sweaty villager walks over and sits inside, shivering with relief. Left-click the villager or the fridge: he screams, jumps out and sprints away. At 1,000 the door slams and locks. |
-| 4 | Split AC + Turbo Remote | 1,000 | 50,000 | Right-click the AC with the remote to pair, then right-click anywhere: the remote LCD shows **16°C TURBO** and a blizzard packs a 40x40 field into ice (x16 points). At 50,000 the remote beeps **STANDBY**. |
-| 5 | Musical Ice Cream Van | 50,000 | 10,000,000 | Place it, right-click to drive (W/S throttle, A/D steer, F5 for a chase camera). It plays its jingle, lays a 10-wide blue-ice highway, ploughs through anything in front of it and flash-freezes houses, trees and terrain. A growing combo surges the counter to 10,000,000 for the finale. Sneak-punch to pick it up. |
+| 1 | Desi Baraf Gola Machine | free | 25 | Right-click twice to crank. **Gotiya** storms over with an empty bowl ("Gotiya: Tum is world ko barf me nahi jama sakte! Main ye nahi hone dunga!"), gets blasted in the face with crushed ice and runs off crying. The handle snaps off with a cartoon *POP* and the wheel shoots crushed ice at the 25 surrounding blocks. Crank again for another run. |
+| 2 | Farrata Table Fan | 25 | 150 | Right-click for SPEED 3: roaring frost wind freezes a 15-block cone and gently nudges you back. Gotiya walks over and sits right in front of the fan, shivering. Hit or left-click him: he screams and runs away. |
+| 3 | Retro Fridge | 150 | 1,000 | Right-click to open: freezing fog, launched ice blocks, and Gotiya walks over and sits inside, shivering with relief. Left-click him or the fridge: he screams, jumps out and runs. The door closes at the end of a run and opens again on the next click. |
+| 4 | Split AC + Turbo Remote | 1,000 | 50,000 | Right-click the AC with the remote to pair, then right-click anywhere: the remote LCD shows **16°C TURBO** and a blizzard packs a 40x40 field into ice (x16 points). At the end of a run the remote shows **STANDBY**; press again for another run. |
+| 5 | Musical Ice Cream Van | 50,000 | 10,000,000 | Place it, right-click to drive (W/S throttle, A/D steer, F5 for a chase camera). The 1.4x-size van plays its jingle, fires packed-ice blocks left and right at high speed, lays a 10-wide packed-ice highway and flash-freezes everything around it. A growing combo surges the counter to 10,000,000. **Finale:** Gotiya staggers in carrying a giant industrial hairdryer with a glowing red-hot coil and blasts flames at the frozen world... which never melts. |
 
 **Frozen blocks never melt.** Yantras only ever produce **Permafrost Ice** (a custom slippery ice with no
-melting logic), packed ice or blue ice. None of them melt next to torches, lanterns, fire or in sunlight.
+melting logic), packed ice or blue ice. Not even Gotiya's hairdryer can melt them. None of them melt next to torches, lanterns, fire or in sunlight.
 
 ### Commands
 
@@ -70,6 +73,10 @@ melting logic), packed ice or blue ice. None of them melt next to torches, lante
 | `/iceage setup` | op | Flattens a 41x41 area around you, gives the Shop Portal (slot 0), the Turbo Remote and testing spawn eggs (Chill Villager, Ice Cream Van), and builds an Ice Portal behind you. |
 | `/iceage shop` | everyone | Opens the shop GUI. |
 | `/iceage showroom` | everyone | Teleports to or from the Frozen Showroom. |
+| `/iceage counter reset` | op | Sets your counter to 0. |
+| `/iceage counter set <amount>` | op | Sets your counter to any value. |
+| `/iceage counter speed <multiplier>` | op | Multiplies every gain (0.1 to 1000). The HUD's x label shows it. |
+| `/iceage gotiya <tier_number>` | op | Summons Gotiya at the nearest Yantra of that tier (1 to 4), or the hairdryer finale (5). |
 | `/iceage points set\|add <amount> [players]` | op | Sets or adds frozen blocks (handy for re-filming a stage). |
 | `/iceage reset [players]` | op | Resets progress to 0. |
 | `/iceage rebuildshowroom` | op | Rebuilds the showroom hall. |

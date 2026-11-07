@@ -15,7 +15,7 @@ public final class ModEntities {
 
     public static final RegistryObject<EntityType<IceCreamTruckEntity>> ICE_CREAM_TRUCK = ENTITIES.register("ice_cream_truck",
             () -> EntityType.Builder.<IceCreamTruckEntity>of(IceCreamTruckEntity::new, MobCategory.MISC)
-                    .sized(2.0f, 2.1f).clientTrackingRange(12).updateInterval(1).fireImmune()
+                    .sized(2.8f, 2.9f).clientTrackingRange(12).updateInterval(1).fireImmune()
                     .build(IceAgeYantra.id("ice_cream_truck").toString()));
 
     public static final RegistryObject<EntityType<ChillVillagerEntity>> CHILL_VILLAGER = ENTITIES.register("chill_villager",

@@ -49,15 +49,13 @@ public class FarrataFanBlockEntity extends YantraBlockEntity {
     @Override
     public void onUse(ServerPlayer player) {
         ServerLevel level = (ServerLevel) this.level;
-        if (phase == RUNNING) {
-            say(player, "msg.ice_age_yantra.fan.already", ChatFormatting.AQUA);
-            return;
-        }
-        if (phase == WINDDOWN || phase == DONE || targetReachedFor(player)) {
-            say(player, "msg.ice_age_yantra.done", ChatFormatting.GOLD, Tier.FAN.displayName(), Tier.FRIDGE.displayName());
-            return;
-        }
+        if (phase == RUNNING) return;
         owner = player.getUUID();
+        beginRun();
+        // Tier 2 gag: Gotiya walks over and sits right in front of the fan, shivering happily
+        if (!gotiyaAround(level)) {
+            trackGotiya(com.iceage.yantra.entity.ChillVillagerEntity.forFront(level, this));
+        }
         buildCone(level);
         setPhase(RUNNING);
         level.playSound(null, worldPosition, ModSounds.FAN_WHOOSH.get(), SoundSource.BLOCKS, 1.4f, 1.0f);
@@ -100,7 +98,7 @@ public class FarrataFanBlockEntity extends YantraBlockEntity {
             running(level);
         } else if (phase == WINDDOWN) {
             if (phaseTicks == 1) level.playSound(null, worldPosition, ModSounds.SQUEAK.get(), SoundSource.BLOCKS, 0.8f, 0.7f);
-            if (phaseTicks >= 70) setPhase(DONE);
+            if (phaseTicks >= 70) setPhase(IDLE);
         }
     }
 
@@ -120,7 +118,8 @@ public class FarrataFanBlockEntity extends YantraBlockEntity {
         }
         // blow loose entities (not players: they already got their nudge)
         AABB box = new AABB(worldPosition).expandTowards(f.getStepX() * 6, 1, f.getStepZ() * 6).inflate(1.2, 0.5, 1.2);
-        for (Entity e : level.getEntities((Entity) null, box, e -> e instanceof ItemEntity || (e instanceof LivingEntity && !(e instanceof net.minecraft.world.entity.player.Player)))) {
+        for (Entity e : level.getEntities((Entity) null, box, e -> e instanceof ItemEntity || (e instanceof LivingEntity && !(e instanceof net.minecraft.world.entity.player.Player)
+                && !(e instanceof com.iceage.yantra.entity.ChillVillagerEntity)))) {
             e.push(f.getStepX() * 0.06, 0.01, f.getStepZ() * 0.06);
             e.hurtMarked = true;
         }

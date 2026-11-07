@@ -1136,6 +1136,12 @@ def build_portal_frame(seed=5):
     # glowing rune stones at the feet
     for fx in (-0.1, 1.1):
         surfs.append(crystal('portal_glow', (fx, 0.32, 0.5), (0, 1, 0), 0.34, 0.07, sides=6, tip=0.3, rng=rng))
+    # a little bigger than a door: scale the whole arch 1.3x around the centre of its base
+    PORTAL_SCALE = 1.3
+    for sf in surfs:
+        sf.P[..., 0] = 0.5 + (sf.P[..., 0] - 0.5) * PORTAL_SCALE
+        sf.P[..., 1] = sf.P[..., 1] * PORTAL_SCALE
+        sf.P[..., 2] = 0.5 + (sf.P[..., 2] - 0.5) * PORTAL_SCALE
     rig.parts['frame'] = surfs
     rig.emissive.add('portal_glow')
     _finish(rig, 0.2, ao_kw=dict(res=140, dirs=64, ground=0.4))
@@ -1278,6 +1284,93 @@ def build_shop_orb(seed=31):
     rig.parts['base'] = s
     rig.emissive.update({'orb_vortex', 'portal_glow'})
     _finish(rig, 0.1, ao_kw=dict(res=100, dirs=48, ground=0.0))
+    return rig
+
+
+def _disc(mat, center, radius, axis_z=True, seg=40, flip=False):
+    """Flat round disc facing +Z (or -Z when flip) with polar uv."""
+    c = np.asarray(center, dtype=np.float64)
+    P, UV = [], []
+    for k in range(seg):
+        a0, a1 = 2 * math.pi * k / seg, 2 * math.pi * (k + 1) / seg
+        p0 = c + np.array([radius * math.cos(a0), radius * math.sin(a0), 0])
+        p1 = c + np.array([radius * math.cos(a1), radius * math.sin(a1), 0])
+        uv0 = (0.5 + 0.5 * math.cos(a0), 0.5 - 0.5 * math.sin(a0)); uv1 = (0.5 + 0.5 * math.cos(a1), 0.5 - 0.5 * math.sin(a1))
+        if flip:
+            P.append([c, p1, p0]); UV.append([(0.5, 0.5), uv1, uv0])
+        else:
+            P.append([c, p0, p1]); UV.append([(0.5, 0.5), uv0, uv1])
+    return Surf(mat, np.asarray(P), None, np.clip(np.asarray(UV), 0.001, 0.999))
+
+
+def build_hairdryer():
+    """Comically oversized salon hairdryer (rendered ~4x in game): glossy barrel along +Z, chrome nozzle with a
+    glowing red-hot heating coil inside, rear intake grille, rubber-grip handle, switch and a coiled cord.
+    Local frame: barrel axis on y = 0, nozzle tip at z = +0.72, handle hangs down to y = -0.85."""
+    rig = Rig('hairdryer')
+    s = []
+    rx = mat_rot_x(90)   # lathe axis +Y -> +Z
+    # glossy barrel shell: rounded rear, bulging body, taper into the nozzle
+    shell = [(0.0, -0.62), (0.10, -0.615), (0.16, -0.60), (0.19, -0.57), (0.205, -0.52), (0.215, -0.40), (0.222, -0.15),
+             (0.222, 0.10), (0.212, 0.28), (0.19, 0.40), (0.168, 0.48), (0.158, 0.50)]
+    s.append(lathe('dryer_shell', shell, 40).transformed(rx))
+    # chrome trim rings
+    for zc, r in ((-0.50, 0.212), (0.02, 0.226), (0.46, 0.176)):
+        ring = [(r * math.cos(a), r * math.sin(a), zc) for a in np.linspace(0, 2 * math.pi, 49)]
+        s.append(tube('dryer_metal', ring, 0.016, sides=8, closed_ends=False))
+    # chrome concentrator nozzle (outer + inner wall so it reads as a hollow hot mouth)
+    noz_out = [(0.158, 0.49), (0.156, 0.56), (0.150, 0.66), (0.152, 0.70), (0.140, 0.725)]
+    s.append(lathe('dryer_metal', noz_out, 36).transformed(rx))
+    noz_in = [(0.128, 0.725), (0.134, 0.66), (0.138, 0.52)]
+    s.append(lathe('dryer_inner', noz_in, 36).transformed(rx))
+    s.append(lathe('dryer_inner', [(0.140, 0.725), (0.128, 0.725)], 36).transformed(rx))
+    s.append(_disc('dryer_inner', (0, 0, 0.50), 0.14))
+    # red-hot heating coil: a tight helix of glowing wire on a star-shaped mica support
+    path = []
+    for i in range(9 * 30 + 1):
+        t = i / (9 * 30)
+        a = 2 * math.pi * 9 * t
+        path.append((0.095 * math.cos(a), 0.095 * math.sin(a), 0.515 + 0.19 * t))
+    s.append(tube('dryer_coil', path, 0.011, sides=6, closed_ends=True))
+    for k in range(4):
+        a = math.pi * k / 4
+        d = np.array([math.cos(a), math.sin(a), 0.0]) * 0.105
+        s.append(Surf('dryer_coil', np.asarray([[(-d[0], -d[1], 0.51), (d[0], d[1], 0.51), (d[0], d[1], 0.71)],
+                                           [(-d[0], -d[1], 0.51), (d[0], d[1], 0.71), (-d[0], -d[1], 0.71)],
+                                           [(d[0], d[1], 0.51), (-d[0], -d[1], 0.51), (d[0], d[1], 0.71)],
+                                           [(d[0], d[1], 0.71), (-d[0], -d[1], 0.51), (-d[0], -d[1], 0.71)]]),
+                 None, np.asarray([[(0.1, 0.9), (0.9, 0.9), (0.9, 0.1)], [(0.1, 0.9), (0.9, 0.1), (0.1, 0.1)],
+                                   [(0.9, 0.9), (0.1, 0.9), (0.9, 0.1)], [(0.9, 0.1), (0.1, 0.9), (0.1, 0.1)]])))
+    s.append(_disc('dryer_coil', (0, 0, 0.505), 0.05))
+    # rear air-intake grille in a chrome bezel
+    s.append(_disc('dryer_grille', (0, 0, -0.605), 0.155, flip=True))
+    ring = [(0.16 * math.cos(a), 0.16 * math.sin(a), -0.603) for a in np.linspace(0, 2 * math.pi, 49)]
+    s.append(tube('dryer_metal', ring, 0.014, sides=8, closed_ends=False))
+    # handle: chunky shell-coloured neck into a rubber grip, raked slightly back
+    hp = [(0, -0.10, -0.02), (0, -0.30, -0.06), (0, -0.55, -0.12), (0, -0.82, -0.19)]
+    s.append(tube('dryer_shell', hp[:3], [0.098, 0.092, 0.090], sides=24, closed_ends=False))
+    s.append(tube('dryer_grip', [(0, -0.40, -0.087), (0, -0.62, -0.142), (0, -0.84, -0.195)], [0.099, 0.101, 0.098], sides=24))
+    # big rocker switch on the front of the handle
+    sw = rounded_slab('dryer_switch', 'dryer_switch', 0.07, 0.03, 0.12, 0.02, 0.008, seg=4, y0=0.0)
+    sw = sw if isinstance(sw, list) else [sw]
+    for q in sw:
+        q2 = q.transformed(mat_rot_x(-90 + 14)).transformed(np.array([[1, 0, 0, 0], [0, 1, 0, -0.33], [0, 0, 1, 0.025], [0, 0, 0, 1.0]]))
+        s.append(q2)
+    # strain relief + coiled cord swinging out of the handle bottom
+    s.append(lathe('dryer_grip', [(0.05, 0.0), (0.04, -0.06), (0.03, -0.12), (0.0, -0.125)], 16, center=(0, -0.83, -0.19)))
+    cord = []
+    for i in range(200):
+        t = i / 199
+        a = 2 * math.pi * 14 * t
+        cord.append((0.045 * math.cos(a) + 0.25 * t, -0.95 - 0.35 * t + 0.045 * math.sin(a), -0.19 - 0.25 * t))
+    s.append(tube('dryer_grip', cord, 0.016, sides=7))
+    lo, hi = bbox(s)
+    for q in s:
+        if q.mat in ('dryer_switch',):
+            box_uv(q, lo, float((hi - lo).max()))
+    rig.parts['body'] = s
+    rig.emissive.add('dryer_coil')
+    _finish(rig, 0.12, ao_kw=dict(res=140, dirs=64, ground=0.0))
     return rig
 
 
@@ -2734,6 +2827,53 @@ def tex_van_egg():
 
 
 # ------------------------------------------------------------- REGISTRY --
+# ------------------------------------------------------------ HAIRDRYER ---
+def tex_dryer_shell():
+    # glossy hot-pink salon plastic with a soft studio highlight band
+    return enamel('#e8336a', 281, flake=0.15, chips=False, gloss=0.32)
+
+
+def tex_dryer_metal():
+    return chrome(282, tint=(1.04, 1.0, 0.97))
+
+
+def tex_dryer_inner():
+    return clamp(brushed(283, col='#2b2d31') * 0.8)
+
+
+def tex_dryer_grip():
+    return rubber(284, col='#1b1c20', knurl=True)
+
+
+def tex_dryer_switch():
+    return plastic('#ffcf2e', 285, grain=0.05)
+
+
+def tex_dryer_grille():
+    h = w = S
+    Y, X = grid(h, w)
+    r = np.sqrt((X - 0.5) ** 2 + (Y - 0.5) ** 2) * 2
+    a = np.arctan2(Y - 0.5, X - 0.5)
+    slots = 0.5 + 0.5 * np.cos(r * 2 * math.pi * 7)
+    ribs = 0.5 + 0.5 * np.cos(a * 12)
+    hole = smoothstep(0.55, 0.7, slots) * smoothstep(0.35, 0.55, ribs) * smoothstep(0.98, 0.9, r) * smoothstep(0.12, 0.2, r)
+    land = ramp(clamp(Y + 0.1 * (fbm(h, w, 3, 3, 286) - 0.5)), [(0, '#e9eef5'), (0.45, '#8a929d'), (0.55, '#3a3f46'), (1, '#c3c9d1')])
+    img = lerp(land, hexc('#08090b'), hole)
+    hub = smoothstep(0.14, 0.1, r)
+    img = lerp(img, hexc('#e8336a'), hub)
+    return clamp(img)
+
+
+def tex_dryer_coil():
+    h = w = S
+    Y, X = grid(h, w)
+    n = fbm(h, w, 4, 4, 287) - 0.5
+    band = 0.5 + 0.5 * np.sin((X * 9 + n * 0.6) * 2 * math.pi)
+    heat = clamp(0.55 + 0.35 * band + 0.3 * n)
+    img = ramp(heat, [(0.0, '#7a0a00'), (0.35, '#e0260a'), (0.65, '#ff7a1c'), (0.88, '#ffd36a'), (1.0, '#fffbe8')])
+    return clamp(img)
+
+
 def all_textures():
     """name -> callable producing an image. Names are paths under textures/."""
     T = {
@@ -2759,6 +2899,9 @@ def all_textures():
         'block/glacier_tiles': tex_glacier_tiles, 'block/aurora_ice': tex_aurora_ice, 'block/packed_frost': tex_packed_frost,
         'block/ice_pillar_side': tex_ice_pillar_side, 'block/ice_pillar_top': tex_ice_pillar_top,
         'block/snow_floor': tex_snow_floor,
+        'block/dryer_shell': tex_dryer_shell, 'block/dryer_metal': tex_dryer_metal, 'block/dryer_inner': tex_dryer_inner,
+        'block/dryer_grip': tex_dryer_grip, 'block/dryer_switch': tex_dryer_switch, 'block/dryer_grille': tex_dryer_grille,
+        'block/dryer_coil': tex_dryer_coil,
         'entity/frost_vortex': tex_frost_vortex, 'entity/glow_halo': tex_glow_halo, 'entity/light_beam': tex_light_beam,
         'gui/shop_panel': lambda: gui_panel(512, 320), 'gui/card': gui_card,
         'gui/button_normal': lambda: gui_button(state='normal'), 'gui/button_hover': lambda: gui_button(state='hover'),
@@ -2958,7 +3101,7 @@ description='''
 Freeze the whole world with five comedic Yantras!
  1. Desi Baraf Gola machine  2. Farrata 3-speed table fan  3. Retro fridge (+ a very relieved villager)
  4. Split AC with 16 C TURBO remote  5. Musical ice cream van that paves a 10-wide blue ice highway.
-Every Yantra stops automatically the moment you can afford the next one. Goal: 10,000,000 blocks frozen.
+Every Yantra pauses when you can afford the next one and can be reused any time. Goal: 10,000,000 blocks frozen.
 
 {CREDITS}'''
 
@@ -3094,7 +3237,7 @@ LANG = {
     "msg.ice_age_yantra.welcome": "You received the Yantra Shop Portal! Right-click it to open the shop.",
     "msg.ice_age_yantra.setup": "Ice Age setup complete! Shop Portal in slot 0, spawn eggs given, Ice Portal behind you.",
     "tooltip.ice_age_yantra.tier": "Yantra Tier %s",
-    "tooltip.ice_age_yantra.target": "Auto-stops at %s frozen blocks",
+    "tooltip.ice_age_yantra.target": "Runs until %s frozen blocks, reusable any time",
     "tooltip.ice_age_yantra.portal.use": "Right-click: open the Yantra Progression Shop",
     "tooltip.ice_age_yantra.portal.sneak": "Sneak + right-click a block: open an Ice Portal to the Frozen Showroom",
     "tooltip.ice_age_yantra.remote.use": "Right-click an AC to pair, right-click anywhere for 16°C TURBO",
@@ -3116,7 +3259,7 @@ LANG = {
     "gui.ice_age_yantra.shop.title": "YANTRA PROGRESSION SHOP",
     "gui.ice_age_yantra.shop.showroom": "Enter Frozen Showroom",
     "gui.ice_age_yantra.shop.close": "Close",
-    "gui.ice_age_yantra.shop.hint": "Every Yantra stops when you can afford the next one",
+    "gui.ice_age_yantra.shop.hint": "Every Yantra is reusable - use it again any time",
 }
 
 SOUNDS_CUSTOM = ['van_jingle', 'van_honk', 'handle_pop', 'crank', 'squeak', 'sputter', 'wheel_spin', 'fan_roar', 'fan_whoosh',
@@ -3300,7 +3443,7 @@ def build_models(res, models_dir, rig_out):
         rig = globals()['build_' + key](path)
         log(f"rig {key}: {sum(len(s.P) for s in rig.all_surfs())} tris ({time.time() - t:.1f}s)")
         rigs.append(rig)
-    for fn in (build_portal_frame, build_pedestal, build_chandelier, build_remote, build_shop_orb):
+    for fn in (build_portal_frame, build_pedestal, build_chandelier, build_remote, build_shop_orb, build_hairdryer):
         t = time.time()
         rig = fn()
         log(f"rig {rig.name}: {sum(len(s.P) for s in rig.all_surfs())} tris ({time.time() - t:.1f}s)")
@@ -3636,14 +3779,10 @@ public class AcUnitBlockEntity extends YantraBlockEntity {
     /** Called by the Turbo Remote. Returns the LCD mode to show. */
     public int pressTurbo(ServerPlayer player) {
         ServerLevel level = (ServerLevel) this.level;
-        if (phase == STANDBY || targetReachedFor(player)) {
-            if (owner == null) owner = player.getUUID();
-            if (phase != STANDBY) setPhase(STANDBY);
-            level.playSound(null, worldPosition, ModSounds.REMOTE_STANDBY.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
-            return RemoteHudPacket.STANDBY;
-        }
+        // reusable forever: STANDBY is only a pause, the next press starts a fresh TURBO run
         owner = player.getUUID();
         if (phase != TURBO) {
+            beginRun();
             row = 0;
             col = 0;
             layer = 0;
@@ -3856,15 +3995,13 @@ public class FarrataFanBlockEntity extends YantraBlockEntity {
     @Override
     public void onUse(ServerPlayer player) {
         ServerLevel level = (ServerLevel) this.level;
-        if (phase == RUNNING) {
-            say(player, "msg.ice_age_yantra.fan.already", ChatFormatting.AQUA);
-            return;
-        }
-        if (phase == WINDDOWN || phase == DONE || targetReachedFor(player)) {
-            say(player, "msg.ice_age_yantra.done", ChatFormatting.GOLD, Tier.FAN.displayName(), Tier.FRIDGE.displayName());
-            return;
-        }
+        if (phase == RUNNING) return;
         owner = player.getUUID();
+        beginRun();
+        // Tier 2 gag: Gotiya walks over and sits right in front of the fan, shivering happily
+        if (!gotiyaAround(level)) {
+            trackGotiya(com.iceage.yantra.entity.ChillVillagerEntity.forFront(level, this));
+        }
         buildCone(level);
         setPhase(RUNNING);
         level.playSound(null, worldPosition, ModSounds.FAN_WHOOSH.get(), SoundSource.BLOCKS, 1.4f, 1.0f);
@@ -3907,7 +4044,7 @@ public class FarrataFanBlockEntity extends YantraBlockEntity {
             running(level);
         } else if (phase == WINDDOWN) {
             if (phaseTicks == 1) level.playSound(null, worldPosition, ModSounds.SQUEAK.get(), SoundSource.BLOCKS, 0.8f, 0.7f);
-            if (phaseTicks >= 70) setPhase(DONE);
+            if (phaseTicks >= 70) setPhase(IDLE);
         }
     }
 
@@ -3927,7 +4064,8 @@ public class FarrataFanBlockEntity extends YantraBlockEntity {
         }
         // blow loose entities (not players: they already got their nudge)
         AABB box = new AABB(worldPosition).expandTowards(f.getStepX() * 6, 1, f.getStepZ() * 6).inflate(1.2, 0.5, 1.2);
-        for (Entity e : level.getEntities((Entity) null, box, e -> e instanceof ItemEntity || (e instanceof LivingEntity && !(e instanceof net.minecraft.world.entity.player.Player)))) {
+        for (Entity e : level.getEntities((Entity) null, box, e -> e instanceof ItemEntity || (e instanceof LivingEntity && !(e instanceof net.minecraft.world.entity.player.Player)
+                && !(e instanceof com.iceage.yantra.entity.ChillVillagerEntity)))) {
             e.push(f.getStepX() * 0.06, 0.01, f.getStepZ() * 0.06);
             e.hurtMarked = true;
         }
@@ -4078,18 +4216,18 @@ public class GolaMachineBlockEntity extends YantraBlockEntity {
     @Override
     public void onUse(ServerPlayer player) {
         ServerLevel level = (ServerLevel) this.level;
-        if (phase == RUNAWAY) {
-            say(player, "msg.ice_age_yantra.gola.possessed", ChatFormatting.LIGHT_PURPLE);
-            return;
+        if (phase == RUNAWAY || phase == SPUTTER || phase == CRANK) return;
+        if (phase == DONE) {
+            // reusable forever: a fresh handle pops back on and the cranking starts over
+            cranks = 0;
+            snapped = false;
         }
-        if (phase == SPUTTER || phase == DONE || targetReachedFor(player)) {
-            say(player, "msg.ice_age_yantra.done", ChatFormatting.GOLD, Tier.GOLA.displayName(), Tier.FAN.displayName());
-            level.playSound(null, worldPosition, ModSounds.SQUEAK.get(), SoundSource.BLOCKS, 0.8f, 1.3f);
-            return;
-        }
-        if (phase == CRANK) return;
         owner = player.getUUID();
         cranks++;
+        // Tier 1 gag: Gotiya storms over with an empty bowl to stop the machine
+        if (cranks == 1 && !gotiyaAround(level)) {
+            trackGotiya(com.iceage.yantra.entity.ChillVillagerEntity.forGola(level, this));
+        }
         setPhase(CRANK);
         level.playSound(null, worldPosition, ModSounds.CRANK.get(), SoundSource.BLOCKS, 1.0f, 0.9f + 0.15f * cranks);
         say(player, "msg.ice_age_yantra.gola.crank", ChatFormatting.AQUA, cranks, Config.GOLA_CRANKS_TO_SNAP.get());
@@ -4114,7 +4252,10 @@ public class GolaMachineBlockEntity extends YantraBlockEntity {
                 if (phaseTicks == 18 || phaseTicks == 34) {
                     level.playSound(null, worldPosition, ModSounds.SQUEAK.get(), SoundSource.BLOCKS, 1.0f, phaseTicks == 18 ? 1.2f : 0.8f);
                 }
-                if (phaseTicks >= 60) setPhase(DONE);
+                if (phaseTicks >= 60) {
+                    cranks = 0;
+                    setPhase(DONE);
+                }
             }
             default -> {
             }
@@ -4124,6 +4265,7 @@ public class GolaMachineBlockEntity extends YantraBlockEntity {
     private void snap(ServerLevel level) {
         snapped = true;
         snapTime = level.getGameTime();
+        beginRun();
         targets.clear();
         targetIndex = 0;
         collectTargets(level, 4);
@@ -4464,7 +4606,7 @@ public class IcePortalBlockEntity extends BlockEntity {
 
     @Override
     public AABB getRenderBoundingBox() {
-        return new AABB(worldPosition).inflate(1.5, 0, 1.5).expandTowards(0, 3, 0);
+        return new AABB(worldPosition).inflate(2.0, 0, 2.0).expandTowards(0, 3.5, 0);
     }
 }
 '''
@@ -4719,22 +4861,10 @@ public class RetroFridgeBlockEntity extends YantraBlockEntity {
     @Override
     public void onUse(ServerPlayer player) {
         ServerLevel level = (ServerLevel) this.level;
-        if (phase == LOCKED) {
-            level.playSound(null, worldPosition, ModSounds.FRIDGE_RATTLE.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
-            say(player, villagerInside ? "msg.ice_age_yantra.fridge.locked_villager" : "msg.ice_age_yantra.fridge.locked", ChatFormatting.GOLD);
-            return;
-        }
-        if (phase == OPEN) {
-            say(player, "msg.ice_age_yantra.fridge.open", ChatFormatting.AQUA);
-            return;
-        }
-        if (targetReachedFor(player)) {
-            owner = player.getUUID();
-            lock(level);
-            say(player, "msg.ice_age_yantra.done", ChatFormatting.GOLD, Tier.FRIDGE.displayName(), Tier.AC.displayName());
-            return;
-        }
+        if (phase == OPEN) return;
+        // reusable forever: the door never stays locked, every click starts a fresh freezing run
         owner = player.getUUID();
+        beginRun();
         buildField(level);
         setPhase(OPEN);
         level.playSound(null, worldPosition, ModSounds.FRIDGE_OPEN.get(), SoundSource.BLOCKS, 1.2f, 1.0f);
@@ -4763,7 +4893,7 @@ public class RetroFridgeBlockEntity extends YantraBlockEntity {
     protected void serverTick(ServerLevel level) {
         if (phase == OPEN) {
             open(level);
-        } else if (phase == LOCKED && villagerInside) {
+        } else if (phase == CLOSED && villagerInside) {
             if (phaseTicks % 90 == 30) {
                 level.playSound(null, worldPosition, ModSounds.VILLAGER_RELIEF.get(), SoundSource.NEUTRAL, 0.45f, 0.9f);
             }
@@ -4827,7 +4957,7 @@ public class RetroFridgeBlockEntity extends YantraBlockEntity {
     }
 
     private void lock(ServerLevel level) {
-        setPhase(LOCKED);
+        setPhase(CLOSED);
         slamTime = level.getGameTime();
         sync();
         level.playSound(null, worldPosition, ModSounds.FRIDGE_SLAM.get(), SoundSource.BLOCKS, 1.5f, 1.0f);
@@ -4838,6 +4968,26 @@ public class RetroFridgeBlockEntity extends YantraBlockEntity {
             ServerPlayer p = level.getServer().getPlayerList().getPlayer(owner);
             if (p != null) say(p, "msg.ice_age_yantra.fridge.slam", ChatFormatting.AQUA);
         }
+    }
+
+    /** /iceage gotiya 3: Gotiya walks over and sits in the fridge (opens the door if it is closed). */
+    @Nullable
+    public ChillVillagerEntity summonVillager(ServerLevel level, ServerPlayer by) {
+        if (phase != OPEN) {
+            owner = by.getUUID();
+            beginRun();
+            buildField(level);
+            setPhase(OPEN);
+            level.playSound(null, worldPosition, ModSounds.FRIDGE_OPEN.get(), SoundSource.BLOCKS, 1.2f, 1.0f);
+        }
+        if (villager != null && level.getEntity(villager) instanceof ChillVillagerEntity old && old.isAlive()) {
+            if (old.isSitting()) return old;
+            old.discard();
+        }
+        villager = null;
+        villagerInside = false;
+        spawnVillager(level);
+        return villager != null && level.getEntity(villager) instanceof ChillVillagerEntity v ? v : null;
     }
 
     private void spawnVillager(ServerLevel level) {
@@ -4880,7 +5030,7 @@ public class RetroFridgeBlockEntity extends YantraBlockEntity {
     }
 
     public boolean canSeat(ChillVillagerEntity v) {
-        return !villagerInside && phase != LOCKED && (villager == null || villager.equals(v.getUUID()));
+        return !villagerInside && (villager == null || villager.equals(v.getUUID()));
     }
 
     public void onVillagerSeated(ChillVillagerEntity v) {
@@ -5271,6 +5421,8 @@ public abstract class YantraBlockEntity extends BlockEntity {
     protected int phase;
     protected int phaseTicks;
     public int age;
+    protected long runUnits, runBudget;
+    protected boolean runBelowTarget;
 
     protected YantraBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
@@ -5287,6 +5439,19 @@ public abstract class YantraBlockEntity extends BlockEntity {
 
     public boolean wantsUse(Player player) {
         return true;
+    }
+
+    /** Gotiya currently reacting to this Yantra (null or gone = spawn a fresh one). */
+    @Nullable
+    protected UUID gotiya;
+
+    protected boolean gotiyaAround(ServerLevel level) {
+        return gotiya != null && level.getEntity(gotiya) instanceof com.iceage.yantra.entity.ChillVillagerEntity v && v.isAlive()
+                && v.state() != com.iceage.yantra.entity.ChillVillagerEntity.FLEEING;
+    }
+
+    protected void trackGotiya(@Nullable com.iceage.yantra.entity.ChillVillagerEntity v) {
+        if (v != null) gotiya = v.getUUID();
     }
 
     public int phase() {
@@ -5328,23 +5493,34 @@ public abstract class YantraBlockEntity extends BlockEntity {
         return level == null ? 0 : PacingEngine.points(level.getServer(), owner);
     }
 
+    /**
+     * Starts a fresh run. Yantras are reusable forever: a run lasts until the owner reaches this Yantra's
+     * target, or, when the owner is already past it, for one full "tier's worth" of work (target - price).
+     */
+    protected void beginRun() {
+        long p = ownerPoints();
+        runUnits = 0;
+        runBelowTarget = p < tier().target;
+        runBudget = runBelowTarget ? tier().target - p : Math.max(25, tier().target - tier().price);
+    }
+
+    /** True once the current run has used up its budget. */
     protected boolean targetReached() {
-        return owner != null && level != null && PacingEngine.reached(level.getServer(), owner, tier().target);
+        if (owner == null || level == null) return true;
+        if (runBelowTarget && ownerPoints() >= tier().target) return true;
+        return runUnits >= runBudget;
     }
 
-    protected boolean targetReachedFor(Player p) {
-        return level != null && PacingEngine.reached(level.getServer(), p.getUUID(), tier().target);
-    }
-
-    /** Pays frozen blocks to the owner; returns true when this Yantra's target has now been reached. */
+    /** Pays frozen blocks to the owner; returns true when the current run is finished. */
     protected boolean pay(long amount) {
         if (level == null || owner == null) return false;
         PacingEngine.award(level.getServer(), owner, amount);
+        runUnits += amount;
         return targetReached();
     }
 
+    /** The screen stays clean: Yantras never post chat or action-bar messages. */
     protected void say(ServerPlayer p, String key, ChatFormatting color, Object... args) {
-        p.displayClientMessage(Component.translatable(key, args).withStyle(color), true);
     }
 
     public void sync() {
@@ -5358,12 +5534,18 @@ public abstract class YantraBlockEntity extends BlockEntity {
         tag.putInt("phase", phase);
         tag.putInt("phaseTicks", phaseTicks);
         if (owner != null) tag.putUUID("owner", owner);
+        tag.putLong("runUnits", runUnits);
+        tag.putLong("runBudget", runBudget);
+        tag.putBoolean("runBelow", runBelowTarget);
     }
 
     protected void loadSync(CompoundTag tag) {
         phase = tag.getInt("phase");
         phaseTicks = tag.getInt("phaseTicks");
         owner = tag.hasUUID("owner") ? tag.getUUID("owner") : null;
+        runUnits = tag.getLong("runUnits");
+        runBudget = tag.getLong("runBudget");
+        runBelowTarget = tag.getBoolean("runBelow");
     }
 
     @Override
@@ -5409,7 +5591,49 @@ import net.minecraftforge.fml.common.Mod;
 
 @Mod.EventBusSubscriber(modid = IceAgeYantra.MODID, value = Dist.CLIENT)
 public final class ClientEvents {
+    /** While set, the vanilla "Loading terrain" / dimension-change screens are skipped for portal trips. */
+    public static volatile long seamlessUntil;
+
     private ClientEvents() {
+    }
+
+    private static java.lang.reflect.Method camMove, camMaxZoom;
+    private static boolean camReflectFailed;
+
+    /** Third person in the (1.4x bigger) van: pull the camera further back and up so it never ends up inside the van. */
+    @SubscribeEvent
+    public static void vanCamera(net.minecraftforge.client.event.ViewportEvent.ComputeCameraAngles e) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.player == null || mc.options.getCameraType().isFirstPerson() || camReflectFailed) return;
+        if (!(mc.player.getVehicle() instanceof com.iceage.yantra.entity.IceCreamTruckEntity)) return;
+        net.minecraft.client.Camera cam = e.getCamera();
+        if (!cam.isDetached()) return;
+        try {
+            if (camMove == null) {
+                camMove = net.minecraftforge.fml.util.ObfuscationReflectionHelper.findMethod(net.minecraft.client.Camera.class, "m_90568_",
+                        double.class, double.class, double.class);
+                camMaxZoom = net.minecraftforge.fml.util.ObfuscationReflectionHelper.findMethod(net.minecraft.client.Camera.class, "m_90566_",
+                        double.class);
+            }
+            camMove.invoke(cam, 0.0, 1.0, 0.0);
+            double extra = (double) camMaxZoom.invoke(cam, 4.0);
+            camMove.invoke(cam, -extra, 0.0, 0.0);
+        } catch (Throwable t) {
+            camReflectFailed = true;
+        }
+    }
+
+    @SubscribeEvent
+    public static void noLoadingScreen(net.minecraftforge.client.event.ScreenEvent.Opening e) {
+        if (System.currentTimeMillis() > seamlessUntil) return;
+        net.minecraft.client.gui.screens.Screen s = e.getNewScreen();
+        if (s instanceof net.minecraft.client.gui.screens.ReceivingLevelScreen) {
+            e.setCanceled(true);
+            seamlessUntil = 0;
+        } else if (s instanceof net.minecraft.client.gui.screens.ProgressScreen
+                || s instanceof net.minecraft.client.gui.screens.GenericDirtMessageScreen) {
+            e.setCanceled(true);
+        }
     }
 
     @SubscribeEvent
@@ -5495,6 +5719,8 @@ import java.util.List;
 /** Client mirror of the frozen-block counter + the state of the animated HUD counter. */
 public final class ClientProgress {
     public static long points;
+    /** Counter speed multiplier set with /iceage counter speed (shown as the x1.0 label). */
+    public static float speed = 1.0f;
     public static int mask;
     public static double displayed;
     public static double prevDisplayed;
@@ -5504,7 +5730,7 @@ public final class ClientProgress {
     private static boolean initialised;
 
     public static class Floater {
-        public final long amount;
+        public long amount;
         public int age;
         public final float x;
 
@@ -5517,7 +5743,8 @@ public final class ClientProgress {
     private ClientProgress() {
     }
 
-    public static void update(long newPoints, int newMask, long gained) {
+    public static void update(long newPoints, int newMask, long gained, float newSpeed) {
+        speed = newSpeed;
         points = newPoints;
         mask = newMask;
         if (!initialised) {
@@ -5534,7 +5761,14 @@ public final class ClientProgress {
                 float pitch = (float) Math.min(2.0, 0.9 + Math.log10(Math.max(1, gained)) * 0.18);
                 mc.getSoundManager().play(SimpleSoundInstance.forUI(ModSounds.DING.get(), pitch, 0.45f));
             }
-            if (FLOATERS.size() < 8) FLOATERS.add(new Floater(gained, (float) Math.random()));
+            // exactly one floating number at a time: new gains merge into it while it is still young,
+            // otherwise it is replaced by a fresh one (no stacking, no overlap)
+            if (!FLOATERS.isEmpty() && FLOATERS.get(0).age < 12) {
+                FLOATERS.get(0).amount += gained;
+            } else {
+                FLOATERS.clear();
+                FLOATERS.add(new Floater(gained, 0.5f));
+            }
         }
         if (newPoints < displayed) displayed = prevDisplayed = newPoints;
     }
@@ -5652,6 +5886,15 @@ public final class CelebrationOverlay {
     }
 
     public static void show(int kind, long value) {
+        if (kind == CelebratePacket.SEAMLESS) {
+            com.iceage.yantra.client.ClientEvents.seamlessUntil = System.currentTimeMillis() + 10_000L;
+            return;
+        }
+        if (kind == CelebratePacket.OPEN_SHOP) {
+            ClientHooks.openShop();
+        }
+        // No banners at all: the screen stays 100% clean (only the top-left counter is drawn).
+        if (kind != Integer.MIN_VALUE) return;
         rainbow = false;
         switch (kind) {
             case CelebratePacket.OPEN_SHOP -> {
@@ -5856,8 +6099,8 @@ public final class IcePointsOverlay {
         Font font = mc.font;
         double shown = Mth.lerp(pt, ClientProgress.prevDisplayed, ClientProgress.displayed);
 
-        float mult = 1.0f;
-        if (mc.player.getVehicle() instanceof IceCreamTruckEntity van) mult = van.combo();
+        float mult = ClientProgress.speed;
+        if (mc.player.getVehicle() instanceof IceCreamTruckEntity van) mult *= van.combo();
         String multText = String.format("x%.1f", mult);
         String total = " / 10,000,000";
 
@@ -5894,13 +6137,16 @@ public final class IcePointsOverlay {
         int multColor = mult > 1.0f ? 0x7FE6FF : 0xFFFFFF;
         g.drawString(font, multText, x + barW - 10 - font.width(multText), ty, multColor, true);
 
-        for (ClientProgress.Floater f : ClientProgress.FLOATERS) {
-            float a = 1f - (f.age + pt) / 30f;
-            int alpha = (int) (a * 255) & 0xFF;
-            if (a <= 0 || alpha < 8) continue;
+        if (!ClientProgress.FLOATERS.isEmpty()) {
+            ClientProgress.Floater f = ClientProgress.FLOATERS.get(0);
+            float life = (f.age + pt) / 30f;
+            float a = 1f - life * life;
+            int alpha = (int) (Mth.clamp(a, 0f, 1f) * 255) & 0xFF;
+            if (alpha < 8) return;
             String txt = "+" + String.format("%,d", f.amount);
-            float fx = x + barW / 2f + (f.x - 0.5f) * 60;
-            float fy = y + barH + 2 + (f.age + pt) * 0.8f;
+            // one clean number under the counter digits, drifting gently upward while it fades
+            float fx = x + 30 + font.width(txt) * 0.4f;
+            float fy = y + barH + 14 - (f.age + pt) * 0.4f;
             g.pose().pushPose();
             g.pose().translate(fx, fy, 0);
             g.pose().scale(0.8f, 0.8f, 1f);
@@ -6142,7 +6388,7 @@ public class ShopScreen extends Screen {
             int pw2 = (int) (font.width(price) * 0.85f);
             GuiTex.blitFull(g, GuiTex.ICE_CUBE, cx + cw / 2 - pw2 / 2 - 11, cy + chh - 44, 9, 9, 128, 128);
             GuiTex.centered(g, font, price, cx + cw / 2 + 5, cy + chh - 42, 0xEFFFFF, 0.85f);
-            GuiTex.centered(g, font, "stops at " + String.format("%,d", tier.target), cx + cw / 2, cy + chh - 32, 0x8FB8D8, 0.7f);
+            GuiTex.centered(g, font, "target " + String.format("%,d", tier.target), cx + cw / 2, cy + chh - 32, 0x8FB8D8, 0.7f);
             int[] br = buttonRect(i);
             boolean bh = in(br, mouseX, mouseY + lift);
             ResourceLocation btn = !affordable ? GuiTex.BTN_LOCKED : owned ? GuiTex.BTN_OWNED : bh ? GuiTex.BTN_HOVER : GuiTex.BTN_NORMAL;
@@ -6406,6 +6652,35 @@ public class ChillVillagerRenderer extends MobRenderer<ChillVillagerEntity, Chil
         addLayer(new CrossedArmsItemLayer<>(this, ctx.getItemInHandRenderer()));
     }
 
+    /** Size of the giant hairdryer relative to its model (about 5 blocks long, towering over Gotiya). */
+    public static final float DRYER_SCALE = 4.0f;
+
+    @Override
+    public void render(ChillVillagerEntity e, float yaw, float pt, PoseStack ps, net.minecraft.client.renderer.MultiBufferSource buf, int light) {
+        super.render(e, yaw, pt, ps, buf, light);
+        if (!e.hasHairdryer()) return;
+        float t = e.tickCount + pt;
+        float body = Mth.rotLerp(pt, e.yBodyRotO, e.yBodyRot);
+        ps.pushPose();
+        ps.mulPose(com.mojang.math.Axis.YP.rotationDegrees(-body));
+        // hands up at chest height, the whole thing sways and dips as he struggles with the weight
+        ps.translate(Mth.sin(t * 0.21f) * 0.08f, 1.35 + Mth.sin(t * 0.33f) * 0.06f, 0.45);
+        ps.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(Mth.sin(t * 0.17f) * 9f + Mth.sin(t * 0.61f) * 2.5f));
+        ps.mulPose(com.mojang.math.Axis.XP.rotationDegrees(14f + Mth.sin(t * 0.25f) * 6f));
+        ps.mulPose(com.mojang.math.Axis.YP.rotationDegrees(Mth.sin(t * 0.09f) * 10f));
+        ps.scale(DRYER_SCALE, DRYER_SCALE, DRYER_SCALE);
+        ps.translate(0, 0.84, 0.19);   // grab it by the bottom of the handle
+        ObjParts.render(ps, buf, ObjParts.HAIRDRYER, light, net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY);
+        // glowing heat at the mouth of the nozzle
+        YantraRig.glow(ps, buf, 0, 0, 0.74, 0.35f, 1.0f, 0.42f, 0.12f, 0.55f + 0.25f * Mth.sin(t * 0.9f));
+        ps.popPose();
+    }
+
+    @Override
+    public boolean shouldRender(ChillVillagerEntity e, net.minecraft.client.renderer.culling.Frustum f, double x, double y, double z) {
+        return e.hasHairdryer() || super.shouldRender(e, f, x, y, z);
+    }
+
     @Override
     public ResourceLocation getTextureLocation(ChillVillagerEntity e) {
         return TEXTURE;
@@ -6449,6 +6724,15 @@ public class ChillVillagerRenderer extends MobRenderer<ChillVillagerEntity, Chil
                 leftLeg.zRot = -0.07853982f;
                 head.zRot = Mth.sin(age * 1.9f) * 0.045f;
                 arms.xRot = -0.95f + Mth.sin(age * 2.2f) * 0.03f;
+            } else if (e.hasHairdryer()) {
+                // arms straining up under the giant hairdryer
+                arms.xRot = -1.9f + Mth.sin(age * 0.4f) * 0.12f;
+                head.xRot = -0.35f;
+                head.zRot = Mth.sin(age * 0.3f) * 0.12f;
+            } else if (e.state() == ChillVillagerEntity.BLASTED) {
+                head.xRot = -0.6f;
+                head.zRot = Mth.sin(age * 2.5f) * 0.25f;
+                arms.xRot = -2.2f;
             } else if (e.state() == ChillVillagerEntity.FLEEING) {
                 arms.xRot = -2.6f + Mth.sin(age * 0.9f) * 0.35f;
                 arms.zRot = Mth.sin(age * 1.3f) * 0.25f;
@@ -6489,6 +6773,7 @@ public class IceCreamTruckRenderer extends EntityRenderer<IceCreamTruckEntity> {
         ps.mulPose(Axis.ZP.rotationDegrees(lean));
         float bounce = Math.abs(e.groundSpeed) > 0.05f ? 0.015f * Mth.sin((e.tickCount + pt) * 1.7f) : 0f;
         ps.translate(0, bounce, 0);
+        ps.scale(IceCreamTruckEntity.VAN_SCALE, IceCreamTruckEntity.VAN_SCALE, IceCreamTruckEntity.VAN_SCALE);
         float wheel = Mth.lerp(pt, e.prevWheelAngle, e.wheelAngle);
         float steer = Mth.lerp(pt, e.prevSteer, e.steer);
         YantraRig.van(ps, buf, light, OverlayTexture.NO_OVERLAY, wheel, steer, e.tickCount + pt, true);
@@ -6532,8 +6817,9 @@ public class IcePortalRenderer implements BlockEntityRenderer<IcePortalBlockEnti
     public void render(IcePortalBlockEntity be, float pt, PoseStack ps, MultiBufferSource buf, int light, int overlay) {
         float t = be.age + pt;
         ps.pushPose();
-        ps.translate(0.5, 1.0, 0.5);
+        ps.translate(0.5, 1.3, 0.5);
         ps.mulPose(Axis.YP.rotationDegrees(180f - be.facing().toYRot()));
+        ps.scale(1.3f, 1.3f, 1.3f);
         // dark core so the swirl reads as a hole in space
         disc(ps, buf.getBuffer(RenderType.entityTranslucent(VORTEX)), 0.56f, 1.02f, t * 1.2f, 0.10f, 0.25f, 0.55f, 0.92f, 0.0f);
         VertexConsumer glow = buf.getBuffer(RenderType.entityTranslucentEmissive(VORTEX));
@@ -6542,7 +6828,7 @@ public class IcePortalRenderer implements BlockEntityRenderer<IcePortalBlockEnti
         float pulse = 0.5f + 0.5f * Mth.sin(t * 0.08f);
         disc(glow, ps, 0.30f + 0.04f * pulse, 0.55f + 0.06f * pulse, -t * 7.0f, 1f, 1f, 1f, 0.55f, 0.012f);
         ps.popPose();
-        YantraRig.glow(ps, buf, 0.5, 1.05, 0.5, 2.6f, 0.35f, 0.75f, 1.0f, 0.35f + 0.15f * pulse);
+        YantraRig.glow(ps, buf, 0.5, 1.35, 0.5, 3.3f, 0.35f, 0.75f, 1.0f, 0.35f + 0.15f * pulse);
     }
 
     private static void disc(PoseStack ps, VertexConsumer vc, float rx, float ry, float rotDeg, float r, float g, float b, float a, float z) {
@@ -6632,6 +6918,7 @@ public final class ObjParts {
             TRUCK_WHEEL_FR = part("truck_wheel_fr"), TRUCK_WHEEL_RL = part("truck_wheel_rl"), TRUCK_WHEEL_RR = part("truck_wheel_rr"),
             TRUCK_DECALS = part("truck_decals"), TRUCK_GLASS = part("truck_glass");
     public static final ResourceLocation SHOP_ORB = part("shop_orb_base");
+    public static final ResourceLocation HAIRDRYER = part("hairdryer_body");
 
     private ObjParts() {
     }
@@ -6959,7 +7246,7 @@ public final class YantraRenderers {
             float top = Mth.lerp(pt, be.prevTopDoorAngle, be.topDoorAngle);
             if (be.getLevel() != null) {
                 float since = be.getLevel().getGameTime() - be.slamTime + pt;
-                if (since < 14f && be.phase() == RetroFridgeBlockEntity.LOCKED) {
+                if (since < 14f && be.phase() == RetroFridgeBlockEntity.CLOSED) {
                     door += 7f * Mth.sin(since * 1.4f) * (1f - since / 14f);
                 }
             }
@@ -7273,6 +7560,8 @@ import com.iceage.yantra.registry.ModItems;
 import com.iceage.yantra.shop.ShowroomBuilder;
 import com.iceage.yantra.shop.ShowroomDimension;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.FloatArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -7315,13 +7604,25 @@ public final class IceAgeCommand {
                 .then(Commands.literal("rebuildshowroom").requires(s -> s.hasPermission(2)).executes(c -> {
                     ServerLevel shop = c.getSource().getServer().getLevel(ShowroomDimension.KEY);
                     if (shop != null) ShowroomBuilder.rebuild(shop);
-                    c.getSource().sendSuccess(() -> Component.literal("Frozen Showroom rebuilt.").withStyle(ChatFormatting.AQUA), true);
                     return 1;
                 }))
                 .then(Commands.literal("reset").requires(s -> s.hasPermission(2))
                         .executes(c -> reset(c, List.of(c.getSource().getPlayerOrException())))
                         .then(Commands.argument("targets", EntityArgument.players())
                                 .executes(c -> reset(c, EntityArgument.getPlayers(c, "targets")))))
+                .then(Commands.literal("counter").requires(s -> s.hasPermission(2))
+                        .then(Commands.literal("reset").executes(c -> counterSet(c, 0L)))
+                        .then(Commands.literal("set").then(Commands.argument("amount", LongArgumentType.longArg(0, 10_000_000L))
+                                .executes(c -> counterSet(c, LongArgumentType.getLong(c, "amount")))))
+                        .then(Commands.literal("speed").then(Commands.argument("multiplier", FloatArgumentType.floatArg(0.1f, 1000f))
+                                .executes(c -> {
+                                    ServerPlayer p = c.getSource().getPlayerOrException();
+                                    PacingEngine.setSpeed(p.server, p.getUUID(), FloatArgumentType.getFloat(c, "multiplier"));
+                                    PacingEngine.sync(p);
+                                    return 1;
+                                }))))
+                .then(Commands.literal("gotiya").requires(s -> s.hasPermission(2))
+                        .then(Commands.argument("tier_number", IntegerArgumentType.integer(1, 5)).executes(IceAgeCommand::gotiya)))
                 .then(Commands.literal("points").requires(s -> s.hasPermission(2))
                         .then(Commands.literal("set").then(Commands.argument("amount", LongArgumentType.longArg(0, 10_000_000L))
                                 .executes(c -> points(c, List.of(c.getSource().getPlayerOrException()), true))
@@ -7334,6 +7635,54 @@ public final class IceAgeCommand {
         );
     }
 
+    private static int counterSet(CommandContext<CommandSourceStack> c, long value) throws CommandSyntaxException {
+        ServerPlayer p = c.getSource().getPlayerOrException();
+        PacingEngine.set(p.server, p.getUUID(), value);
+        PacingEngine.sync(p);
+        return 1;
+    }
+
+    /** /iceage gotiya <tier>: makes Gotiya show up at the nearest Yantra of that tier (5 = hairdryer finale). */
+    private static int gotiya(CommandContext<CommandSourceStack> c) throws CommandSyntaxException {
+        ServerPlayer p = c.getSource().getPlayerOrException();
+        int tier = IntegerArgumentType.getInteger(c, "tier_number");
+        ServerLevel level = p.serverLevel();
+        if (tier == 5) {
+            com.iceage.yantra.entity.ChillVillagerEntity.spawnHairdryerFinale(p);
+            return 1;
+        }
+        com.iceage.yantra.block.YantraBlockEntity best = null;
+        double bestD = 96 * 96;
+        BlockPos at = p.blockPosition();
+        for (int cx = (at.getX() >> 4) - 6; cx <= (at.getX() >> 4) + 6; cx++) {
+            for (int cz = (at.getZ() >> 4) - 6; cz <= (at.getZ() >> 4) + 6; cz++) {
+                if (!level.hasChunk(cx, cz)) continue;
+                for (var be : level.getChunk(cx, cz).getBlockEntities().values()) {
+                    if (be instanceof com.iceage.yantra.block.YantraBlockEntity y && y.tier().number == tier) {
+                        double d = be.getBlockPos().distSqr(at);
+                        if (d < bestD) {
+                            bestD = d;
+                            best = y;
+                        }
+                    }
+                }
+            }
+        }
+        if (best == null) {
+            c.getSource().sendFailure(Component.literal("Place a Tier " + tier + " Yantra nearby first."));
+            return 0;
+        }
+        com.iceage.yantra.entity.ChillVillagerEntity v;
+        if (best instanceof com.iceage.yantra.block.GolaMachineBlockEntity g) {
+            v = com.iceage.yantra.entity.ChillVillagerEntity.forGola(level, g);
+        } else if (best instanceof com.iceage.yantra.block.RetroFridgeBlockEntity f) {
+            v = f.summonVillager(level, p);
+        } else {
+            v = com.iceage.yantra.entity.ChillVillagerEntity.forFront(level, best);
+        }
+        return v != null ? 1 : 0;
+    }
+
     private static int points(CommandContext<CommandSourceStack> c, Collection<ServerPlayer> targets, boolean set) {
         long amount = LongArgumentType.getLong(c, "amount");
         for (ServerPlayer p : targets) {
@@ -7341,8 +7690,6 @@ public final class IceAgeCommand {
             else PacingEngine.award(p.server, p.getUUID(), amount);
             PacingEngine.sync(p);
         }
-        c.getSource().sendSuccess(() -> Component.literal((set ? "Set" : "Added") + " " + String.format("%,d", amount)
-                + " frozen blocks for " + targets.size() + " player(s).").withStyle(ChatFormatting.AQUA), true);
         return targets.size();
     }
 
@@ -7356,7 +7703,6 @@ public final class IceAgeCommand {
             data.setDirty();
             PacingEngine.sync(p);
         }
-        c.getSource().sendSuccess(() -> Component.literal("Ice Age progress reset for " + targets.size() + " player(s).").withStyle(ChatFormatting.AQUA), true);
         return targets.size();
     }
 
@@ -7393,7 +7739,6 @@ public final class IceAgeCommand {
         level.setBlock(portal, lower, Block.UPDATE_ALL);
         level.setBlock(portal.above(), lower.setValue(IcePortalBlock.HALF, DoubleBlockHalf.UPPER), Block.UPDATE_ALL);
         PacingEngine.sync(p);
-        c.getSource().sendSuccess(() -> Component.translatable("msg.ice_age_yantra.setup").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD), true);
         return 1;
     }
 
@@ -7404,18 +7749,26 @@ public final class IceAgeCommand {
 '''
 JAVA_SOURCES['src/main/java/com/iceage/yantra/entity/ChillVillagerEntity.java'] = r'''package com.iceage.yantra.entity;
 
+import com.iceage.yantra.block.FarrataFanBlockEntity;
+import com.iceage.yantra.block.GolaMachineBlockEntity;
 import com.iceage.yantra.block.RetroFridgeBlockEntity;
+import com.iceage.yantra.block.YantraBlockEntity;
+import com.iceage.yantra.progress.FreezeEngine;
+import com.iceage.yantra.registry.ModEntities;
 import com.iceage.yantra.registry.ModParticles;
 import com.iceage.yantra.registry.ModSounds;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -7423,6 +7776,8 @@ import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -7435,30 +7790,48 @@ import net.minecraft.world.entity.npc.VillagerDataHolder;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.npc.VillagerType;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.EnumSet;
 
 /**
- * The goofy overheated villager from the fridge gag: waddles over sweating, sits inside the open fridge
- * shivering with relief, and screams + sprints away when anyone pokes him or the fridge.
+ * Gotiya: the goofy overheated villager who keeps trying to stop the Ice Age.
+ * <ul>
+ * <li>Tier 1 (Gola): storms over holding an empty bowl ("Main ye nahi hone dunga!"), gets blasted in the face
+ * with crushed ice and runs off crying.</li>
+ * <li>Tier 2 (Fan) / Tier 4 (AC): walks over and sits right in front of the machine, shivering happily.</li>
+ * <li>Tier 3 (Fridge): waddles over and sits inside the open fridge.</li>
+ * <li>Finale: hauls a giant industrial hairdryer to melt the world... and fails, because the ice never melts.</li>
+ * </ul>
+ * Any hit or left-click makes him scream and flee at normal villager panic speed.
  */
 public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHolder {
-    public static final int WALKING = 0, SITTING = 1, FLEEING = 2;
+    public static final int WALKING = 0, SITTING = 1, FLEEING = 2, BOWL = 3, FRONT_WALK = 4, FRONT_SIT = 5, HAIRDRYER = 6, BLASTED = 7;
+    public static final String NAME = "Gotiya";
+    public static final float FLEE_SPEED = 0.5F;
     private static final EntityDataAccessor<Integer> DATA_STATE = SynchedEntityData.defineId(ChillVillagerEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Boolean> DATA_CRYING = SynchedEntityData.defineId(ChillVillagerEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<VillagerData> DATA_VILLAGER = SynchedEntityData.defineId(ChillVillagerEntity.class, EntityDataSerializers.VILLAGER_DATA);
 
+    /** The Yantra Gotiya is reacting to (fridge, gola, fan, AC). */
     @Nullable
     private BlockPos fridgePos;
     private int stateTicks;
     @Nullable
     private Vec3 threat;
+    @Nullable
+    private Vec3 sitSpot;
 
     public ChillVillagerEntity(EntityType<? extends ChillVillagerEntity> type, Level level) {
         super(type, level);
         setPersistenceRequired();
+        setCustomName(Component.literal(NAME));
+        setCustomNameVisible(true);
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -7470,6 +7843,7 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
     protected void defineSynchedData() {
         super.defineSynchedData();
         entityData.define(DATA_STATE, WALKING);
+        entityData.define(DATA_CRYING, false);
         entityData.define(DATA_VILLAGER, new VillagerData(VillagerType.DESERT, VillagerProfession.FARMER, 1));
     }
 
@@ -7487,8 +7861,18 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
         return entityData.get(DATA_STATE);
     }
 
+    /** Sitting pose (inside the fridge or on the ground in front of a fan / AC). */
     public boolean isSitting() {
-        return state() == SITTING;
+        int s = state();
+        return s == SITTING || s == FRONT_SIT;
+    }
+
+    public boolean isCrying() {
+        return entityData.get(DATA_CRYING);
+    }
+
+    public boolean hasHairdryer() {
+        return state() == HAIRDRYER;
     }
 
     private void setState(int s) {
@@ -7505,6 +7889,8 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(1, new FleeGoal());
         goalSelector.addGoal(2, new WalkToFridgeGoal());
+        goalSelector.addGoal(2, new WalkToYantraGoal());
+        goalSelector.addGoal(2, new HairdryerGoal());
         goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 8.0f));
     }
 
@@ -7513,6 +7899,96 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
         if (fridgePos == null || !level().isLoaded(fridgePos)) return null;
         return level().getBlockEntity(fridgePos) instanceof RetroFridgeBlockEntity f ? f : null;
     }
+
+    @Nullable
+    private YantraBlockEntity anchor() {
+        if (fridgePos == null || !level().isLoaded(fridgePos)) return null;
+        return level().getBlockEntity(fridgePos) instanceof YantraBlockEntity y ? y : null;
+    }
+
+    // ------------------------------------------------------------------------------ spawning
+
+    /** Shows a line of Gotiya dialogue as an on-screen subtitle to everyone nearby. */
+    public static void dialogue(ServerLevel level, Vec3 at, String line) {
+        Component msg = Component.literal(NAME + ": ").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD)
+                .append(Component.literal(line).withStyle(ChatFormatting.WHITE));
+        for (ServerPlayer p : level.players()) {
+            if (p.position().distanceToSqr(at) < 48 * 48) p.displayClientMessage(msg, true);
+        }
+    }
+
+    /** Spawns Gotiya on solid ground roughly {@code minDist..maxDist} blocks in front of a Yantra. */
+    @Nullable
+    public static ChillVillagerEntity spawnNear(ServerLevel level, BlockPos anchor, Direction facing, double minDist, double maxDist) {
+        float baseYaw = facing.toYRot();
+        for (int attempt = 0; attempt < 32; attempt++) {
+            double ang = Math.toRadians(baseYaw + (level.random.nextDouble() - 0.5) * 120);
+            double dist = minDist + level.random.nextDouble() * (maxDist - minDist);
+            int x = Mth.floor(anchor.getX() + 0.5 - Math.sin(ang) * dist);
+            int z = Mth.floor(anchor.getZ() + 0.5 + Math.cos(ang) * dist);
+            BlockPos ground = FreezeEngine.surface(level, x, z, anchor.getY(), 6, 8);
+            if (ground == null) continue;
+            BlockPos at = ground.above();
+            if (!level.getBlockState(at).getCollisionShape(level, at).isEmpty() || !level.getBlockState(at.above()).getCollisionShape(level, at.above()).isEmpty()) continue;
+            if (!level.getBlockState(ground).getFluidState().isEmpty()) continue;
+            return spawnAt(level, Vec3.atBottomCenterOf(at), anchor);
+        }
+        Vec3 f = Vec3.atBottomCenterOf(anchor).add(facing.getStepX() * minDist, 0.1, facing.getStepZ() * minDist);
+        return spawnAt(level, f, anchor);
+    }
+
+    @Nullable
+    public static ChillVillagerEntity spawnAt(ServerLevel level, Vec3 p, @Nullable BlockPos anchor) {
+        ChillVillagerEntity v = ModEntities.CHILL_VILLAGER.get().create(level);
+        if (v == null) return null;
+        v.moveTo(p.x, p.y, p.z, level.random.nextFloat() * 360f, 0);
+        v.fridgePos = anchor;
+        v.finalizeSpawn(level, level.getCurrentDifficultyAt(v.blockPosition()), MobSpawnType.EVENT, null, null);
+        v.setCustomName(Component.literal(NAME));
+        v.setCustomNameVisible(true);
+        level.addFreshEntity(v);
+        level.sendParticles(ParticleTypes.POOF, p.x, p.y + 0.5, p.z, 12, 0.3, 0.5, 0.3, 0.02);
+        return v;
+    }
+
+    /** Tier 1: Gotiya storms in with an empty bowl to stop the Gola machine. */
+    public static ChillVillagerEntity forGola(ServerLevel level, GolaMachineBlockEntity gola) {
+        ChillVillagerEntity v = spawnNear(level, gola.getBlockPos(), gola.facing(), 6, 8);
+        if (v != null) {
+            v.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOWL));
+            v.setDropChance(EquipmentSlot.MAINHAND, 0f);
+            v.setState(BOWL);
+            v.playSound(SoundEvents.VILLAGER_NO, 1.2f, 0.9f);
+            dialogue(level, v.position(), "Tum is world ko barf me nahi jama sakte! Main ye nahi hone dunga!");
+        }
+        return v;
+    }
+
+    /** Tier 2 / 4: Gotiya walks over and sits right in front of the machine, shivering. */
+    public static ChillVillagerEntity forFront(ServerLevel level, YantraBlockEntity y) {
+        ChillVillagerEntity v = spawnNear(level, y.getBlockPos(), y.facing().getClockWise(), 7, 10);
+        if (v != null) v.setState(FRONT_WALK);
+        return v;
+    }
+
+    /** Finale: Gotiya hauls in a giant hairdryer to melt the frozen world. It does not work. */
+    public static void spawnHairdryerFinale(ServerPlayer player) {
+        ServerLevel level = player.serverLevel();
+        Vec3 look = player.getLookAngle().multiply(1, 0, 1);
+        if (look.lengthSqr() < 1e-4) look = new Vec3(0, 0, 1);
+        look = look.normalize();
+        Vec3 c = player.position().add(look.scale(12));
+        BlockPos ground = FreezeEngine.surface(level, Mth.floor(c.x), Mth.floor(c.z), player.blockPosition().getY(), 10, 16);
+        Vec3 at = ground != null ? Vec3.atBottomCenterOf(ground.above()) : c;
+        ChillVillagerEntity v = spawnAt(level, at, null);
+        if (v == null) return;
+        v.threat = player.position();
+        v.setYRot((float) (Mth.atan2(-(player.getX() - at.x), player.getZ() - at.z) * Mth.RAD_TO_DEG));
+        v.setState(HAIRDRYER);
+        dialogue(level, at, "Ab dekho! Main poori duniya ki barf pighla dunga!!");
+    }
+
+    // ------------------------------------------------------------------------------ tick
 
     @Override
     public void tick() {
@@ -7530,18 +8006,11 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
                     scare(null);
                     return;
                 }
-                if (f.phase() == RetroFridgeBlockEntity.LOCKED) {
-                    playSound(SoundEvents.VILLAGER_NO, 1.0f, 1.0f);
-                    scare(null);
-                    return;
-                }
                 Vec3 front = Vec3.atBottomCenterOf(fridgePos).add(f.facing().getStepX() * 1.1, 0, f.facing().getStepZ() * 1.1);
                 if (position().distanceToSqr(front) < 2.6 && f.canSeat(this) && f.phase() == RetroFridgeBlockEntity.OPEN) {
                     sitDown(sl, f);
                 }
-                if (stateTicks % 60 == 0) {
-                    playSound(SoundEvents.VILLAGER_AMBIENT, 0.8f, 1.3f);
-                }
+                if (stateTicks % 60 == 0) playSound(SoundEvents.VILLAGER_AMBIENT, 0.8f, 1.3f);
             }
             case SITTING -> {
                 RetroFridgeBlockEntity f = fridge();
@@ -7561,14 +8030,44 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
                     sl.sendParticles(ParticleTypes.HAPPY_VILLAGER, getX(), getY() + 1.6, getZ(), 5, 0.3, 0.2, 0.3, 0.0);
                 }
             }
+            case BOWL -> tickBowl(sl);
+            case BLASTED -> {
+                setDeltaMovement(getDeltaMovement().multiply(0, 1, 0));
+                if (stateTicks % 4 == 0) {
+                    sl.sendParticles(ModParticles.SNOWFLAKE.get(), getX(), getEyeY(), getZ(), 4, 0.25, 0.2, 0.25, 0.02);
+                }
+                if (stateTicks == 6) playSound(SoundEvents.VILLAGER_HURT, 1.2f, 1.4f);
+                if (stateTicks >= 22) {
+                    entityData.set(DATA_CRYING, true);
+                    scare(null);
+                }
+            }
+            case FRONT_WALK -> {
+                YantraBlockEntity y = anchor();
+                if (y == null || stateTicks > 1200) {
+                    scare(null);
+                    return;
+                }
+                Vec3 spot = frontSpot(y);
+                if (position().multiply(1, 0, 1).distanceToSqr(spot.multiply(1, 0, 1)) < 0.9) {
+                    sitSpot = new Vec3(spot.x, getY(), spot.z);
+                    getNavigation().stop();
+                    setState(FRONT_SIT);
+                    playSound(ModSounds.VILLAGER_RELIEF.get(), 1.0f, 1.0f);
+                    sl.sendParticles(ParticleTypes.HAPPY_VILLAGER, getX(), getY() + 1.4, getZ(), 6, 0.3, 0.2, 0.3, 0.0);
+                }
+                if (stateTicks % 50 == 0) playSound(SoundEvents.VILLAGER_AMBIENT, 0.8f, 1.3f);
+            }
+            case FRONT_SIT -> tickFrontSit(sl);
+            case HAIRDRYER -> tickHairdryer(sl);
             case FLEEING -> {
                 if (stateTicks % 30 == 5) {
-                    playSound(ModSounds.VILLAGER_SCREAM.get(), 1.2f, 1.0f + random.nextFloat() * 0.3f);
+                    playSound(isCrying() ? SoundEvents.VILLAGER_HURT : ModSounds.VILLAGER_SCREAM.get(), 1.2f, 1.0f + random.nextFloat() * 0.3f);
                 }
                 if (stateTicks % 3 == 0) {
                     sl.sendParticles(ParticleTypes.SPLASH, getX(), getY() + 1.7, getZ(), 2, 0.2, 0.1, 0.2, 0.05);
                 }
-                if (stateTicks > 200) {
+                if (stateTicks > 220) {
                     sl.sendParticles(ParticleTypes.POOF, getX(), getY() + 0.8, getZ(), 18, 0.3, 0.6, 0.3, 0.02);
                     sl.sendParticles(ModParticles.SNOWFLAKE.get(), getX(), getY() + 1.0, getZ(), 20, 0.4, 0.6, 0.4, 0.05);
                     discard();
@@ -7577,6 +8076,125 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
             default -> {
             }
         }
+    }
+
+    /** Where Gotiya stands / sits: right in the cold stream, ~2 blocks in front of the Yantra. */
+    private Vec3 frontSpot(YantraBlockEntity y) {
+        double d = y instanceof GolaMachineBlockEntity ? 1.6 : 2.2;
+        return Vec3.atBottomCenterOf(y.getBlockPos()).add(y.facing().getStepX() * d, 0, y.facing().getStepZ() * d);
+    }
+
+    private void tickBowl(ServerLevel sl) {
+        YantraBlockEntity y = anchor();
+        if (y == null || stateTicks > 900) {
+            scare(null);
+            return;
+        }
+        Vec3 spot = frontSpot(y);
+        getLookControl().setLookAt(Vec3.atCenterOf(y.getBlockPos()));
+        if (stateTicks % 40 == 20) playSound(SoundEvents.VILLAGER_NO, 1.0f, 1.0f + random.nextFloat() * 0.2f);
+        if (position().multiply(1, 0, 1).distanceToSqr(spot.multiply(1, 0, 1)) < 1.4) {
+            getNavigation().stop();
+            // he holds out his bowl... and the machine blasts crushed ice right into his face
+            Vec3 from = y instanceof GolaMachineBlockEntity g ? g.wheelWorld() : Vec3.atCenterOf(y.getBlockPos()).add(0, 0.6, 0);
+            Vec3 face = new Vec3(getX(), getEyeY(), getZ());
+            for (int i = 0; i <= 12; i++) {
+                double t = i / 12.0;
+                Vec3 p = from.lerp(face, t).add(0, Math.sin(t * Math.PI) * 0.35, 0);
+                sl.sendParticles(ModParticles.ICE_SHARD.get(), p.x, p.y, p.z, 3, 0.05, 0.05, 0.05, 0.03);
+            }
+            Vec3 dir = face.subtract(from).normalize();
+            for (int i = 0; i < 24; i++) {
+                sl.sendParticles(ModParticles.ICE_SHARD.get(), from.x, from.y, from.z, 0, dir.x + (random.nextDouble() - 0.5) * 0.3,
+                        dir.y + (random.nextDouble() - 0.3) * 0.3, dir.z + (random.nextDouble() - 0.5) * 0.3, 0.9);
+            }
+            sl.sendParticles(ModParticles.SNOWFLAKE.get(), face.x, face.y, face.z, 40, 0.25, 0.25, 0.25, 0.08);
+            sl.sendParticles(ParticleTypes.CLOUD, face.x, face.y, face.z, 10, 0.2, 0.2, 0.2, 0.03);
+            sl.playSound(null, blockPosition(), ModSounds.FREEZE.get(), SoundSource.NEUTRAL, 1.4f, 1.2f);
+            sl.playSound(null, blockPosition(), ModSounds.HANDLE_POP.get(), SoundSource.NEUTRAL, 1.0f, 1.4f);
+            Vec3 knock = position().subtract(Vec3.atBottomCenterOf(y.getBlockPos())).multiply(1, 0, 1);
+            if (knock.lengthSqr() > 1e-4) knock = knock.normalize();
+            setDeltaMovement(knock.x * 0.3, 0.25, knock.z * 0.3);
+            hurtMarked = true;
+            threat = Vec3.atCenterOf(y.getBlockPos());
+            setState(BLASTED);
+        }
+    }
+
+    private void tickFrontSit(ServerLevel sl) {
+        YantraBlockEntity y = anchor();
+        if (y == null) {
+            scare(null);
+            return;
+        }
+        if (sitSpot != null) setPos(sitSpot.x, sitSpot.y, sitSpot.z);
+        setDeltaMovement(Vec3.ZERO);
+        float yaw = y.facing().getOpposite().toYRot();
+        setYRot(yaw);
+        setYBodyRot(yaw);
+        setYHeadRot(yaw + Mth.sin(stateTicks * 0.07f) * 12f);
+        boolean running = y.phase() != 0;
+        if (running && stateTicks % 5 == 0) {
+            sl.sendParticles(ModParticles.SNOWFLAKE.get(), getX(), getY() + 1.2, getZ(), 2, 0.3, 0.3, 0.3, 0.01);
+        }
+        if (stateTicks % 90 == 30) {
+            playSound(ModSounds.VILLAGER_RELIEF.get(), 0.7f, 0.9f + random.nextFloat() * 0.2f);
+            sl.sendParticles(ParticleTypes.HAPPY_VILLAGER, getX(), getY() + 1.4, getZ(), 4, 0.3, 0.2, 0.3, 0.0);
+        }
+        if (!running && stateTicks > 1200) scare(null);
+    }
+
+    // giant hairdryer finale -------------------------------------------------------------------
+    /** Nozzle tip in world space (the dryer is held in front, barrel pointing forward). */
+    public Vec3 nozzle() {
+        float yaw = yBodyRot * Mth.DEG_TO_RAD;
+        double fx = -Mth.sin(yaw), fz = Mth.cos(yaw);
+        return position().add(fx * 4.0, 4.4, fz * 4.0);
+    }
+
+    private void tickHairdryer(ServerLevel sl) {
+        Vec3 n = nozzle();
+        float yaw = yBodyRot * Mth.DEG_TO_RAD;
+        double fx = -Mth.sin(yaw), fz = Mth.cos(yaw);
+        // massive blast of hot air and flame out of the nozzle (purely visual: the ice never melts)
+        for (int i = 0; i < 6; i++) {
+            double sp = 0.6 + random.nextDouble() * 0.5;
+            sl.sendParticles(ParticleTypes.FLAME, n.x, n.y, n.z, 0, fx + (random.nextDouble() - 0.5) * 0.35, -0.25 + (random.nextDouble() - 0.5) * 0.3,
+                    fz + (random.nextDouble() - 0.5) * 0.35, sp);
+        }
+        if (stateTicks % 2 == 0) {
+            sl.sendParticles(ParticleTypes.LARGE_SMOKE, n.x, n.y, n.z, 0, fx * 0.8, -0.1, fz * 0.8, 0.5);
+            sl.sendParticles(ParticleTypes.SMOKE, n.x, n.y, n.z, 4, 0.3, 0.3, 0.3, 0.05);
+        }
+        if (stateTicks % 5 == 0) {
+            // heat haze lands on the ice: it hisses and steams... and stays frozen
+            Vec3 hit = n.add(fx * 6, -4.0, fz * 6);
+            sl.sendParticles(ParticleTypes.CLOUD, hit.x, hit.y, hit.z, 6, 1.2, 0.3, 1.2, 0.02);
+            sl.sendParticles(ModParticles.SNOWFLAKE.get(), hit.x, hit.y + 0.5, hit.z, 6, 1.2, 0.3, 1.2, 0.03);
+        }
+        if (stateTicks % 20 == 0) {
+            sl.playSound(null, BlockPos.containing(n), SoundEvents.BLAZE_SHOOT, SoundSource.NEUTRAL, 1.0f, 0.5f + random.nextFloat() * 0.2f);
+            sl.playSound(null, blockPosition(), ModSounds.FAN_WHOOSH.get(), SoundSource.NEUTRAL, 1.4f, 0.6f);
+        }
+        if (stateTicks % 37 == 0) {
+            sl.playSound(null, blockPosition(), SoundEvents.FIRE_EXTINGUISH, SoundSource.NEUTRAL, 0.9f, 0.8f);
+        }
+        if (stateTicks % 45 == 10) playSound(SoundEvents.VILLAGER_HURT, 0.9f, 0.7f);  // grunting under the weight
+        if (stateTicks == 320) dialogue(sl, position(), "Ye barf pighal kyun nahi rahi?!");
+        if (stateTicks >= 600) {
+            // the dryer overheats and dies, the world stays frozen, Gotiya runs off crying
+            sl.sendParticles(ParticleTypes.LARGE_SMOKE, n.x, n.y, n.z, 40, 1.0, 0.8, 1.0, 0.05);
+            sl.sendParticles(ParticleTypes.EXPLOSION, n.x, n.y, n.z, 2, 0.3, 0.3, 0.3, 0.0);
+            sl.playSound(null, blockPosition(), ModSounds.SPUTTER.get(), SoundSource.NEUTRAL, 1.6f, 0.7f);
+            dialogue(sl, position(), "Nahiii! Ye barf kabhi nahi pighlegi!");
+            entityData.set(DATA_CRYING, true);
+            scare(null);
+        }
+    }
+
+    @Override
+    public AABB getBoundingBoxForCulling() {
+        return hasHairdryer() ? getBoundingBox().inflate(5.0, 6.0, 5.0) : super.getBoundingBoxForCulling();
     }
 
     private void sitDown(ServerLevel sl, RetroFridgeBlockEntity f) {
@@ -7592,18 +8210,20 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
         sl.sendParticles(ParticleTypes.HAPPY_VILLAGER, seat.x, seat.y + 1.8, seat.z, 8, 0.3, 0.2, 0.3, 0.0);
     }
 
-    /** Scream, jump out, sprint away frantically. */
+    /** Scream, hop up and run away (normal villager panic speed). */
     public void scare(@Nullable Player by) {
         if (state() == FLEEING) return;
-        boolean wasSitting = state() == SITTING;
+        boolean wasInFridge = state() == SITTING;
         RetroFridgeBlockEntity f = fridge();
-        threat = by != null ? by.position() : (fridgePos != null ? Vec3.atCenterOf(fridgePos) : position());
+        if (by != null) threat = by.position();
+        else if (threat == null) threat = fridgePos != null ? Vec3.atCenterOf(fridgePos) : position().add(random.nextGaussian(), 0, random.nextGaussian());
         setState(FLEEING);
         noPhysics = false;
         setNoGravity(false);
+        sitSpot = null;
         playSound(ModSounds.VILLAGER_SCREAM.get(), 1.6f, 1.0f);
         Direction out = f != null ? f.facing() : getDirection();
-        if (wasSitting && f != null) {
+        if (wasInFridge && f != null) {
             f.onVillagerLeft();
             Vec3 p = Vec3.atBottomCenterOf(fridgePos).add(out.getStepX() * 1.0, 0.05, out.getStepZ() * 1.0);
             setPos(p.x, p.y, p.z);
@@ -7611,8 +8231,9 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
         Vec3 away = position().subtract(threat).multiply(1, 0, 1);
         if (away.lengthSqr() < 0.01) away = new Vec3(out.getStepX(), 0, out.getStepZ());
         away = away.normalize();
-        setDeltaMovement(away.x * 0.55, 0.62, away.z * 0.55);
+        setDeltaMovement(away.x * 0.25, 0.42, away.z * 0.25);
         hurtMarked = true;
+        getNavigation().stop();
         if (level() instanceof ServerLevel sl) {
             sl.sendParticles(ParticleTypes.SPLASH, getX(), getY() + 1.8, getZ(), 20, 0.3, 0.3, 0.3, 0.2);
             sl.sendParticles(ParticleTypes.ANGRY_VILLAGER, getX(), getY() + 2.0, getZ(), 3, 0.3, 0.2, 0.3, 0.0);
@@ -7620,19 +8241,37 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
     }
 
     private void clientFx() {
-        if (state() == WALKING && random.nextInt(4) == 0) {
+        int s = state();
+        if ((s == WALKING || s == BOWL || s == FRONT_WALK || s == HAIRDRYER) && random.nextInt(4) == 0) {
+            // sweating buckets
             level().addParticle(ParticleTypes.FALLING_WATER, getX() + (random.nextDouble() - 0.5) * 0.5, getY() + 1.9, getZ() + (random.nextDouble() - 0.5) * 0.5, 0, 0, 0);
         }
-        if (state() == SITTING) {
+        if (isCrying() && s == FLEEING) {
+            float yaw = yBodyRot * Mth.DEG_TO_RAD;
+            double fx = -Mth.sin(yaw), fz = Mth.cos(yaw), sx = Mth.cos(yaw), sz = Mth.sin(yaw);
+            for (int k = -1; k <= 1; k += 2) {
+                level().addParticle(ParticleTypes.FALLING_WATER, getX() + fx * 0.28 + sx * 0.12 * k, getY() + 1.55, getZ() + fz * 0.28 + sz * 0.12 * k,
+                        0, 0, 0);
+            }
+            if (random.nextInt(3) == 0) {
+                level().addParticle(ParticleTypes.SPLASH, getX() + fx * 0.3, getY() + 1.5, getZ() + fz * 0.3, 0, 0.05, 0);
+            }
+        }
+        if (isSitting()) {
             if (random.nextInt(5) == 0) {
                 level().addParticle(ModParticles.SNOWFLAKE.get(), getX() + (random.nextDouble() - 0.5) * 0.7, getY() + 1.0 + random.nextDouble(),
                         getZ() + (random.nextDouble() - 0.5) * 0.7, 0, -0.01, 0);
             }
             if (tickCount % 18 == 0) {
                 float yaw = getYRot() * Mth.DEG_TO_RAD;
-                level().addParticle(ModParticles.FROST_MIST.get(), getX() - Mth.sin(yaw) * 0.35, getY() + 1.45, getZ() + Mth.cos(yaw) * 0.35,
+                level().addParticle(ModParticles.FROST_MIST.get(), getX() - Mth.sin(yaw) * 0.35, getY() + 1.2, getZ() + Mth.cos(yaw) * 0.35,
                         -Mth.sin(yaw) * 0.02, 0.005, Mth.cos(yaw) * 0.02);
             }
+        }
+        if (s == HAIRDRYER && random.nextInt(2) == 0) {
+            Vec3 n = nozzle();
+            level().addParticle(ParticleTypes.FLAME, n.x + (random.nextDouble() - 0.5) * 0.6, n.y + (random.nextDouble() - 0.5) * 0.6,
+                    n.z + (random.nextDouble() - 0.5) * 0.6, 0, 0.02, 0);
         }
     }
 
@@ -7647,12 +8286,12 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
 
     @Override
     public boolean isPushable() {
-        return state() != SITTING;
+        return !isSitting() && state() != HAIRDRYER;
     }
 
     @Override
     protected void pushEntities() {
-        if (state() != SITTING) super.pushEntities();
+        if (!isSitting()) super.pushEntities();
     }
 
     @Override
@@ -7662,7 +8301,7 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
 
     @Override
     protected SoundEvent getAmbientSound() {
-        return state() == SITTING ? null : SoundEvents.VILLAGER_AMBIENT;
+        return isSitting() || state() == HAIRDRYER ? null : SoundEvents.VILLAGER_AMBIENT;
     }
 
     @Override
@@ -7680,6 +8319,7 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
         super.addAdditionalSaveData(tag);
         if (fridgePos != null) tag.put("fridge", NbtUtils.writeBlockPos(fridgePos));
         tag.putInt("chillState", state());
+        tag.putBoolean("crying", isCrying());
     }
 
     @Override
@@ -7687,11 +8327,17 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
         super.readAdditionalSaveData(tag);
         if (tag.contains("fridge")) fridgePos = NbtUtils.readBlockPos(tag.getCompound("fridge"));
         int s = tag.getInt("chillState");
-        entityData.set(DATA_STATE, s == SITTING ? SITTING : (s == FLEEING ? FLEEING : WALKING));
+        // seated-in-front states resume walking so they find their spot again
+        if (s == FRONT_SIT) s = FRONT_WALK;
+        if (s == BLASTED) s = FLEEING;
+        entityData.set(DATA_STATE, s);
+        entityData.set(DATA_CRYING, tag.getBoolean("crying"));
         if (s == SITTING) {
             noPhysics = true;
             setNoGravity(true);
         }
+        setCustomName(Component.literal(NAME));
+        setCustomNameVisible(true);
     }
 
     // ------------------------------------------------------------------------------------ goals
@@ -7719,6 +8365,58 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
         }
     }
 
+    /** Walks Gotiya to the spot right in front of a Gola / Fan / AC. */
+    private class WalkToYantraGoal extends Goal {
+        private int repath;
+
+        WalkToYantraGoal() {
+            setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
+        }
+
+        @Override
+        public boolean canUse() {
+            int s = state();
+            return (s == BOWL || s == FRONT_WALK) && fridgePos != null;
+        }
+
+        @Override
+        public void tick() {
+            if (--repath > 0) return;
+            repath = 8;
+            YantraBlockEntity y = anchor();
+            if (y == null) return;
+            Vec3 spot = frontSpot(y);
+            if (!getNavigation().moveTo(spot.x, spot.y, spot.z, state() == BOWL ? 0.75 : 0.6)) {
+                // no path (e.g. slippery ice): just shuffle straight there
+                getMoveControl().setWantedPosition(spot.x, spot.y, spot.z, 0.6);
+            }
+        }
+    }
+
+    /** Lurches slowly forward under the weight of the giant hairdryer, swinging it around. */
+    private class HairdryerGoal extends Goal {
+        private int repath;
+
+        HairdryerGoal() {
+            setFlags(EnumSet.of(Flag.MOVE));
+        }
+
+        @Override
+        public boolean canUse() {
+            return state() == HAIRDRYER;
+        }
+
+        @Override
+        public void tick() {
+            if (--repath > 0) return;
+            repath = 40;
+            Vec3 c = threat != null ? threat : position();
+            double a = random.nextDouble() * Math.PI * 2;
+            double r = 5 + random.nextDouble() * 4;
+            getNavigation().moveTo(c.x + Math.cos(a) * r, c.y, c.z + Math.sin(a) * r, 0.35);
+        }
+    }
+
     private class FleeGoal extends Goal {
         FleeGoal() {
             setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
@@ -7733,7 +8431,7 @@ public class ChillVillagerEntity extends PathfinderMob implements VillagerDataHo
         public void tick() {
             if (getNavigation().isDone() && threat != null) {
                 Vec3 target = DefaultRandomPos.getPosAway(ChillVillagerEntity.this, 24, 7, threat);
-                if (target != null) getNavigation().moveTo(target.x, target.y, target.z, 1.75);
+                if (target != null) getNavigation().moveTo(target.x, target.y, target.z, FLEE_SPEED);
             }
         }
     }
@@ -7785,6 +8483,8 @@ import java.util.UUID;
  * around it. Points scale with a growing combo so the counter surges all the way to 10,000,000.
  */
 public class IceCreamTruckEntity extends Entity {
+    /** The van is drawn 1.4x bigger than its rig model (seat, hitbox and effects scale with it). */
+    public static final float VAN_SCALE = 1.4f;
     private static final EntityDataAccessor<Float> DATA_MAX_SPEED = SynchedEntityData.defineId(IceCreamTruckEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Integer> DATA_COMBO = SynchedEntityData.defineId(IceCreamTruckEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> DATA_HONK = SynchedEntityData.defineId(IceCreamTruckEntity.class, EntityDataSerializers.INT);
@@ -7909,21 +8609,21 @@ public class IceCreamTruckEntity extends Entity {
     protected void positionRider(Entity passenger, Entity.MoveFunction fn) {
         if (!hasPassenger(passenger)) return;
         float yaw = getYRot() * Mth.DEG_TO_RAD;
-        double lx = com.iceage.yantra.RigData.TRUCK_SEAT_X, lz = com.iceage.yantra.RigData.TRUCK_SEAT_Z;
+        double lx = com.iceage.yantra.RigData.TRUCK_SEAT_X * VAN_SCALE, lz = com.iceage.yantra.RigData.TRUCK_SEAT_Z * VAN_SCALE;
         double ox = lx * Mth.cos(yaw) - lz * Mth.sin(yaw);
         double oz = lx * Mth.sin(yaw) + lz * Mth.cos(yaw);
-        fn.accept(passenger, getX() + ox, getY() + com.iceage.yantra.RigData.TRUCK_SEAT_Y + passenger.getMyRidingOffset(), getZ() + oz);
+        fn.accept(passenger, getX() + ox, getY() + com.iceage.yantra.RigData.TRUCK_SEAT_Y * VAN_SCALE + passenger.getMyRidingOffset(), getZ() + oz);
     }
 
     @Override
     public double getPassengersRidingOffset() {
-        return com.iceage.yantra.RigData.TRUCK_SEAT_Y;
+        return com.iceage.yantra.RigData.TRUCK_SEAT_Y * VAN_SCALE;
     }
 
     @Override
     public Vec3 getDismountLocationForPassenger(LivingEntity passenger) {
         float yaw = getYRot() * Mth.DEG_TO_RAD;
-        for (double side : new double[]{-1.7, 1.7}) {
+        for (double side : new double[]{-2.4, 2.4}) {
             double ox = side * Mth.cos(yaw);
             double oz = side * Mth.sin(yaw);
             Vec3 p = new Vec3(getX() + ox, getY() + 0.1, getZ() + oz);
@@ -8017,12 +8717,12 @@ public class IceCreamTruckEntity extends Entity {
         int half = Config.VAN_HIGHWAY_WIDTH.get() / 2;
         int changed = 0;
         java.util.HashSet<Long> done = new java.util.HashSet<>();
-        for (double ahead = 0.5; ahead <= 5.0; ahead += 0.5) {
+        for (double ahead = 0.5; ahead <= 7.0; ahead += 0.5) {
             for (double l = -half; l <= half; l += 0.5) {
                 int x = Mth.floor(getX() + fx * ahead + rx * l);
                 int z = Mth.floor(getZ() + fz * ahead + rz * l);
                 if (!done.add(BlockPos.asLong(x, 0, z))) continue;
-                changed += paveColumn(level, x, z, roadY, Math.abs(l) <= 2.0);
+                changed += paveColumn(level, x, z, roadY, Math.abs(l) <= 2.8);
             }
         }
         // flash-freeze the surroundings: houses, trees, terrain
@@ -8043,14 +8743,36 @@ public class IceCreamTruckEntity extends Entity {
         if (changed > 0 && PacingEngine.points(level.getServer(), credit) < Tier.FINAL_TARGET) {
             PacingEngine.award(level.getServer(), credit, (long) changed * Config.VAN_POINTS_PER_BLOCK.get() * combo);
         }
+        // aggressive ice cannons: packed-ice blocks fly out left and right at high speed and coat the path
+        if (tickCount % 2 == 0) {
+            for (int side = -1; side <= 1; side += 2) {
+                shootIce(level, fx, fz, rx * side, rz * side);
+            }
+        }
         // effects
-        double bx = getX() - fx * 1.9, bz = getZ() - fz * 1.9;
+        double bx = getX() - fx * 2.7, bz = getZ() - fz * 2.7;
         level.sendParticles(ModParticles.SNOWFLAKE.get(), bx, getY() + 0.4, bz, 6, 1.2, 0.3, 1.2, 0.05);
         level.sendParticles(ModParticles.FROST_MIST.get(), bx, getY() + 0.2, bz, 2, 1.0, 0.1, 1.0, 0.02);
-        level.sendParticles(ModParticles.ICE_SHARD.get(), getX() + fx * 2.2, getY() + 0.8, getZ() + fz * 2.2, 4, 0.8, 0.6, 0.8, 0.25);
+        level.sendParticles(ModParticles.ICE_SHARD.get(), getX() + fx * 3.1, getY() + 1.1, getZ() + fz * 3.1, 4, 1.1, 0.8, 1.1, 0.25);
         if (tickCount % 7 == 0) {
             level.playSound(null, blockPosition(), ModSounds.FREEZE.get(), SoundSource.NEUTRAL, 0.8f, 0.6f + random.nextFloat() * 0.3f);
         }
+    }
+
+    private void shootIce(ServerLevel level, double fx, double fz, double sx, double sz) {
+        double along = (random.nextDouble() - 0.4) * 2.4;
+        double px = getX() + sx * 1.7 + fx * along, pz = getZ() + sz * 1.7 + fz * along;
+        BlockPos spawn = BlockPos.containing(px, getY() + 2.2, pz);
+        if (!level.getBlockState(spawn).isAir()) return;
+        net.minecraft.world.entity.item.FallingBlockEntity fb = net.minecraft.world.entity.item.FallingBlockEntity.fall(level, spawn,
+                Blocks.PACKED_ICE.defaultBlockState());
+        fb.dropItem = false;
+        double out = 0.9 + random.nextDouble() * 0.7;
+        double fwd = speed * 0.8 + (random.nextDouble() - 0.5) * 0.3;
+        fb.setDeltaMovement(sx * out + fx * fwd, 0.35 + random.nextDouble() * 0.35, sz * out + fz * fwd);
+        fb.hurtMarked = true;
+        level.sendParticles(ModParticles.ICE_SHARD.get(), px, getY() + 2.2, pz, 6, 0.2, 0.2, 0.2, 0.3);
+        if (random.nextInt(4) == 0) level.playSound(null, spawn, ModSounds.FAN_WHOOSH.get(), SoundSource.NEUTRAL, 0.5f, 1.7f);
     }
 
     private int paveColumn(ServerLevel level, int x, int z, int roadY, boolean corridor) {
@@ -8059,17 +8781,17 @@ public class IceCreamTruckEntity extends Entity {
         BlockState rs = level.getBlockState(road);
         if (rs.isAir() || !rs.getFluidState().isEmpty() || FreezeEngine.isPlant(rs)) {
             if (!FreezeEngine.isProtected(level, road, rs) || rs.isAir()) {
-                level.setBlock(road, Blocks.BLUE_ICE.defaultBlockState(), 18);
+                level.setBlock(road, Blocks.PACKED_ICE.defaultBlockState(), 18);
                 changed++;
             }
             BlockPos under = road.below();
             BlockState us = level.getBlockState(under);
             if (us.isAir() || !us.getFluidState().isEmpty()) {
-                level.setBlock(under, Blocks.BLUE_ICE.defaultBlockState(), 18);
+                level.setBlock(under, Blocks.PACKED_ICE.defaultBlockState(), 18);
                 changed++;
             }
         } else {
-            changed += FreezeEngine.freezeTo(level, road, FreezeEngine.BLUE);
+            changed += FreezeEngine.freezeTo(level, road, FreezeEngine.PACKED);
         }
         for (int dy = 1; dy <= 4; dy++) {
             BlockPos p = road.above(dy);
@@ -8125,7 +8847,7 @@ public class IceCreamTruckEntity extends Entity {
         float yaw = getYRot() * Mth.DEG_TO_RAD;
         float fwd = (float) (dx * -Mth.sin(yaw) + dz * Mth.cos(yaw));
         groundSpeed = fwd;
-        wheelAngle += fwd / 0.425f * Mth.RAD_TO_DEG;
+        wheelAngle += fwd / (0.425f * VAN_SCALE) * Mth.RAD_TO_DEG;
         float dYaw = Mth.wrapDegrees(getYRot() - lastYaw);
         lastYaw = getYRot();
         steer += (Mth.clamp(-dYaw * 6f, -28f, 28f) - steer) * 0.3f;
@@ -8134,7 +8856,7 @@ public class IceCreamTruckEntity extends Entity {
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> com.iceage.yantra.client.ClientHooks.ensureJingle(this));
         }
         if (Math.abs(fwd) > 0.08f && random.nextInt(2) == 0) {
-            double bx = getX() + Mth.sin(yaw) * 1.9, bz = getZ() - Mth.cos(yaw) * 1.9;
+            double bx = getX() + Mth.sin(yaw) * 2.7, bz = getZ() - Mth.cos(yaw) * 2.7;
             level().addParticle(ModParticles.FROST_MIST.get(), bx + (random.nextDouble() - 0.5) * 2, getY() + 0.15, bz + (random.nextDouble() - 0.5) * 2, 0, 0.01, 0);
         }
     }
@@ -8149,7 +8871,7 @@ public class IceCreamTruckEntity extends Entity {
 
     @Override
     public AABB getBoundingBoxForCulling() {
-        return getBoundingBox().inflate(1.8, 1.8, 1.8);
+        return getBoundingBox().inflate(2.6, 2.6, 2.6);
     }
 
     @Override
@@ -8216,6 +8938,13 @@ public final class CommonEvents {
     }
 
     @SubscribeEvent
+    public static void onPlayerTick(TickEvent.PlayerTickEvent e) {
+        if (e.phase == TickEvent.Phase.END && e.player instanceof ServerPlayer sp && sp.tickCount % 5 == 0) {
+            com.iceage.yantra.shop.ShowroomDimension.guard(sp);
+        }
+    }
+
+    @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent e) {
         if (e.phase == TickEvent.Phase.END && e.getServer() != null) PacingEngine.flush(e.getServer());
     }
@@ -8260,7 +8989,6 @@ public final class CommonEvents {
         inv.selected = 0;
         entry.portalGiven = true;
         data.setDirty();
-        p.sendSystemMessage(Component.translatable("msg.ice_age_yantra.welcome").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
     }
 }
 '''
@@ -8423,7 +9151,7 @@ public class IceCreamVanItem extends Item {
             van.moveTo(at.x, at.y + 1, at.z, yaw, 0f);
             if (!level.noCollision(van, van.getBoundingBox().deflate(0.05))) {
                 if (player != null) {
-                    player.displayClientMessage(Component.translatable("msg.ice_age_yantra.van.no_space").withStyle(ChatFormatting.RED), true);
+                    
                 }
                 return InteractionResult.FAIL;
             }
@@ -8588,7 +9316,7 @@ public class YantraShopPortalItem extends Item {
         if (ctx.getClickedFace() != Direction.UP) base = ctx.getClickedPos().above();
         if (!level.getBlockState(base).canBeReplaced() || !level.getBlockState(base.above()).canBeReplaced()) {
             if (!level.isClientSide) {
-                player.displayClientMessage(Component.translatable("msg.ice_age_yantra.portal.no_space").withStyle(ChatFormatting.RED), true);
+                
             }
             return InteractionResult.FAIL;
         }
@@ -8599,7 +9327,6 @@ public class YantraShopPortalItem extends Item {
             level.setBlock(base, lower, Block.UPDATE_ALL);
             level.setBlock(base.above(), lower.setValue(IcePortalBlock.HALF, DoubleBlockHalf.UPPER), Block.UPDATE_ALL);
             level.playSound(null, base, ModSounds.PORTAL_WHOOSH.get(), SoundSource.BLOCKS, 1.2f, 0.8f);
-            player.displayClientMessage(Component.translatable("msg.ice_age_yantra.portal.placed").withStyle(ChatFormatting.AQUA), true);
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
     }
@@ -8622,7 +9349,7 @@ import java.util.function.Supplier;
 
 /** Server -> client: big on-screen banners (target reached, purchase, 10M climax). */
 public class CelebratePacket {
-    public static final int TARGET = 0, CLIMAX = 1, PURCHASE = 2, LOCKED = 3, OPEN_SHOP = 9;
+    public static final int TARGET = 0, CLIMAX = 1, PURCHASE = 2, LOCKED = 3, OPEN_SHOP = 9, SEAMLESS = 10;
     public final int kind;
     public final long value;
 
@@ -8641,8 +9368,8 @@ public class CelebratePacket {
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
-        DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->
-                com.iceage.yantra.client.gui.CelebrationOverlay.show(kind, value));
+        ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->
+                com.iceage.yantra.client.gui.CelebrationOverlay.show(kind, value)));
         ctx.get().setPacketHandled(true);
     }
 }
@@ -8794,26 +9521,29 @@ public class SyncProgressPacket {
     public final long points;
     public final int purchasedMask;
     public final long gained;
+    public final float speed;
 
-    public SyncProgressPacket(long points, int purchasedMask, long gained) {
+    public SyncProgressPacket(long points, int purchasedMask, long gained, float speed) {
         this.points = points;
         this.purchasedMask = purchasedMask;
         this.gained = gained;
+        this.speed = speed;
     }
 
     public SyncProgressPacket(FriendlyByteBuf buf) {
-        this(buf.readVarLong(), buf.readVarInt(), buf.readVarLong());
+        this(buf.readVarLong(), buf.readVarInt(), buf.readVarLong(), buf.readFloat());
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeVarLong(points);
         buf.writeVarInt(purchasedMask);
         buf.writeVarLong(gained);
+        buf.writeFloat(speed);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->
-                com.iceage.yantra.client.ClientProgress.update(points, purchasedMask, gained));
+                com.iceage.yantra.client.ClientProgress.update(points, purchasedMask, gained, speed));
         ctx.get().setPacketHandled(true);
     }
 }
@@ -8998,6 +9728,7 @@ public class IceProgress extends SavedData {
         public int purchasedMask;
         public boolean portalGiven;
         public boolean climaxDone;
+        public float speed = 1.0f;
         public ResourceKey<Level> returnDim;
         public Vec3 returnPos;
         public float returnYaw;
@@ -9008,6 +9739,7 @@ public class IceProgress extends SavedData {
             t.putInt("purchased", purchasedMask);
             t.putBoolean("portalGiven", portalGiven);
             t.putBoolean("climax", climaxDone);
+            t.putFloat("speed", speed);
             if (returnDim != null && returnPos != null) {
                 t.putString("rdim", returnDim.location().toString());
                 t.putDouble("rx", returnPos.x);
@@ -9025,6 +9757,7 @@ public class IceProgress extends SavedData {
             e.purchasedMask = t.getInt("purchased");
             e.portalGiven = t.getBoolean("portalGiven");
             e.climaxDone = t.getBoolean("climax");
+            e.speed = t.contains("speed") ? t.getFloat("speed") : 1.0f;
             if (t.contains("rdim")) {
                 e.returnDim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(t.getString("rdim")));
                 e.returnPos = new Vec3(t.getDouble("rx"), t.getDouble("ry"), t.getDouble("rz"));
@@ -9118,6 +9851,7 @@ public final class PacingEngine {
         IceProgress.Entry e = data.entry(owner);
         long before = e.points;
         if (before >= Tier.FINAL_TARGET) return 0;
+        amount = Math.max(1L, Math.round(amount * (double) e.speed));
         long after = Math.min(Tier.FINAL_TARGET, before + amount);
         e.points = after;
         data.setDirty();
@@ -9140,13 +9874,22 @@ public final class PacingEngine {
         PENDING_GAIN.merge(owner, 0L, Long::sum);
     }
 
+    /** Counter speed multiplier (x0.1 .. x1000); every award is multiplied by it. */
+    public static void setSpeed(MinecraftServer server, UUID owner, float speed) {
+        IceProgress data = IceProgress.get(server);
+        IceProgress.Entry e = data.entry(owner);
+        e.speed = Math.max(0.1f, Math.min(1000f, speed));
+        data.setDirty();
+        PENDING_GAIN.merge(owner, 0L, Long::sum);
+    }
+
     private static void onTargetReached(MinecraftServer server, ServerPlayer player, Tier tier, IceProgress.Entry e) {
         if (player == null) return;
         if (tier == Tier.VAN) {
             if (e.climaxDone) return;
             e.climaxDone = true;
-            ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new CelebratePacket(CelebratePacket.CLIMAX, Tier.FINAL_TARGET));
-            player.sendSystemMessage(Component.translatable("msg.ice_age_yantra.climax").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
+            // finale: Gotiya staggers in with his giant hairdryer to melt the world... and fails (ice never melts)
+            com.iceage.yantra.entity.ChillVillagerEntity.spawnHairdryerFinale(player);
             ServerLevel level = player.serverLevel();
             level.playSound(null, player.blockPosition(), ModSounds.FANFARE.get(), SoundSource.PLAYERS, 1.6f, 1.0f);
             for (int i = 0; i < 12; i++) {
@@ -9155,11 +9898,7 @@ public final class PacingEngine {
             }
             return;
         }
-        ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new CelebratePacket(CelebratePacket.TARGET, tier.number));
-        Tier next = Tier.byNumber(tier.number + 1);
-        player.sendSystemMessage(Component.translatable("msg.ice_age_yantra.target_reached", tier.displayName(),
-                String.format("%,d", tier.target), next == null ? Component.empty() : next.displayName())
-                .withStyle(ChatFormatting.AQUA));
+        // no banner, no chat: only a soft chime
         player.serverLevel().playSound(null, player.blockPosition(), ModSounds.TARGET_REACHED.get(), SoundSource.PLAYERS, 1.0f, 1.0f);
     }
 
@@ -9191,7 +9930,7 @@ public final class PacingEngine {
             ServerPlayer p = server.getPlayerList().getPlayer(en.getKey());
             if (p != null) {
                 IceProgress.Entry e = data.entry(en.getKey());
-                ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new SyncProgressPacket(e.points, e.purchasedMask, en.getValue()));
+                ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new SyncProgressPacket(e.points, e.purchasedMask, en.getValue(), e.speed));
             }
             it.remove();
         }
@@ -9199,7 +9938,7 @@ public final class PacingEngine {
 
     public static void sync(ServerPlayer p) {
         IceProgress.Entry e = IceProgress.get(p.server).entry(p.getUUID());
-        ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new SyncProgressPacket(e.points, e.purchasedMask, 0));
+        ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new SyncProgressPacket(e.points, e.purchasedMask, 0, e.speed));
     }
 }
 '''
@@ -9455,7 +10194,7 @@ public final class ModEntities {
 
     public static final RegistryObject<EntityType<IceCreamTruckEntity>> ICE_CREAM_TRUCK = ENTITIES.register("ice_cream_truck",
             () -> EntityType.Builder.<IceCreamTruckEntity>of(IceCreamTruckEntity::new, MobCategory.MISC)
-                    .sized(2.0f, 2.1f).clientTrackingRange(12).updateInterval(1).fireImmune()
+                    .sized(2.8f, 2.9f).clientTrackingRange(12).updateInterval(1).fireImmune()
                     .build(IceAgeYantra.id("ice_cream_truck").toString()));
 
     public static final RegistryObject<EntityType<ChillVillagerEntity>> CHILL_VILLAGER = ENTITIES.register("chill_villager",
@@ -9638,8 +10377,6 @@ public final class ShopLogic {
         IceProgress.Entry e = data.entry(player.getUUID());
         if (e.points < tier.price) {
             long missing = tier.price - e.points;
-            player.displayClientMessage(Component.translatable("msg.ice_age_yantra.shop.locked", tier.displayName(),
-                    String.format("%,d", missing)).withStyle(ChatFormatting.RED), true);
             player.serverLevel().playSound(null, player.blockPosition(), SoundEvents.VILLAGER_NO, SoundSource.PLAYERS, 0.8f, 1.2f);
             return;
         }
@@ -9654,10 +10391,6 @@ public final class ShopLogic {
         data.setDirty();
         PacingEngine.sync(player);
         player.serverLevel().playSound(null, player.blockPosition(), ModSounds.PURCHASE.get(), SoundSource.PLAYERS, 1.0f, 1.0f);
-        ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new CelebratePacket(CelebratePacket.PURCHASE, tier.number));
-        player.sendSystemMessage(Component.translatable(first ? "msg.ice_age_yantra.shop.bought" : "msg.ice_age_yantra.shop.bought_again",
-                tier.displayName()).withStyle(ChatFormatting.AQUA));
-        player.sendSystemMessage(Component.translatable("msg.ice_age_yantra.shop.hint." + tier.id).withStyle(ChatFormatting.GRAY));
     }
 }
 '''
@@ -9682,7 +10415,7 @@ import net.minecraft.world.level.saveddata.SavedData;
  * Yantras, a glowing title and the return portal.
  */
 public final class ShowroomBuilder {
-    public static final int VERSION = 4;
+    public static final int VERSION = 5;
     public static final int FLOOR = 63;
     public static final int X0 = -12, X1 = 12, Z0 = -10, Z1 = 22, TOP = 76;
     public static final BlockPos[] PEDESTALS = {
@@ -9797,6 +10530,13 @@ public final class ShowroomBuilder {
         BlockState portal = ModBlocks.ICE_PORTAL.get().defaultBlockState().setValue(IcePortalBlock.FACING, Direction.SOUTH);
         level.setBlock(new BlockPos(0, FLOOR + 1, Z0 + 1), portal.setValue(IcePortalBlock.HALF, DoubleBlockHalf.LOWER), Block.UPDATE_ALL);
         level.setBlock(new BlockPos(0, FLOOR + 2, Z0 + 1), portal.setValue(IcePortalBlock.HALF, DoubleBlockHalf.UPPER), Block.UPDATE_ALL);
+        // arrival pad: a solid glowing dais whose top is exactly Y = 65.0, centred on X = 0.5, Z = 0.5
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                set(level, dx, FLOOR, dz, packed);
+                set(level, dx, FLOOR + 1, dz, (dx == 0 && dz == 0) ? aurora : bricks);
+            }
+        }
         // frost carpet in front of the portal
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = 2; dz <= 4; dz++) {
@@ -9830,7 +10570,7 @@ import java.util.UUID;
 /** The dedicated Frozen Showroom dimension and the teleport logic of the ice portals. */
 public final class ShowroomDimension {
     public static final ResourceKey<Level> KEY = ResourceKey.create(Registries.DIMENSION, IceAgeYantra.id("frozen_showroom"));
-    public static final Vec3 ARRIVAL = new Vec3(0.5, 64.0, -5.5);
+    public static final Vec3 ARRIVAL = new Vec3(0.5, 65.0, 0.5);
     private static final Map<UUID, Long> COOLDOWN = new HashMap<>();
 
     private ShowroomDimension() {
@@ -9874,10 +10614,52 @@ public final class ShowroomDimension {
         e.returnPos = player.position().subtract(look.scale(1.6));
         e.returnYaw = player.getYRot() + 180f;
         data.setDirty();
+        shop.getChunk(0, 0);
         ShowroomBuilder.ensureBuilt(shop);
-        player.teleportTo(shop, ARRIVAL.x, ARRIVAL.y, ARRIVAL.z, 0f, 5f);
+        safeTeleport(player, shop, ARRIVAL, 0f, 5f);
         shop.playSound(null, BlockPos.containing(ARRIVAL), ModSounds.PORTAL_WHOOSH.get(), SoundSource.PLAYERS, 1.0f, 1.0f);
-        player.displayClientMessage(Component.translatable("msg.ice_age_yantra.showroom.welcome").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD), true);
+    }
+
+    /** Teleports with zero velocity and no accumulated fall damage. */
+    public static void safeTeleport(ServerPlayer player, ServerLevel level, Vec3 pos, float yaw, float pitch) {
+        player.stopRiding();
+        if (player.level() != level) {
+            // tell the client to skip the "Loading terrain" screen for this hop
+            com.iceage.yantra.network.ModNetwork.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
+                    new com.iceage.yantra.network.CelebratePacket(com.iceage.yantra.network.CelebratePacket.SEAMLESS, 0));
+        }
+        player.setDeltaMovement(Vec3.ZERO);
+        player.fallDistance = 0f;
+        player.teleportTo(level, pos.x, pos.y, pos.z, yaw, pitch);
+        player.setDeltaMovement(Vec3.ZERO);
+        player.fallDistance = 0f;
+        player.hurtMarked = true;
+        player.connection.resetPosition();
+    }
+
+    /** Finds solid ground with two free blocks above it, near the remembered spot (never mid-air, never inside blocks). */
+    public static Vec3 groundAt(ServerLevel level, Vec3 near) {
+        int x = net.minecraft.util.Mth.floor(near.x), z = net.minecraft.util.Mth.floor(near.z);
+        level.getChunk(x >> 4, z >> 4);
+        int startY = Math.min(level.getMaxBuildHeight() - 3, net.minecraft.util.Mth.floor(near.y) + 3);
+        for (int y = startY; y > Math.max(level.getMinBuildHeight(), startY - 48); y--) {
+            BlockPos g = new BlockPos(x, y, z);
+            if (level.getBlockState(g).getCollisionShape(level, g).isEmpty()) continue;
+            if (!level.getBlockState(g.above()).getCollisionShape(level, g.above()).isEmpty()) continue;
+            if (!level.getBlockState(g.above(2)).getCollisionShape(level, g.above(2)).isEmpty()) continue;
+            if (level.getBlockState(g).getBlock() instanceof com.iceage.yantra.block.IcePortalBlock) continue;
+            double top = g.getY() + level.getBlockState(g).getCollisionShape(level, g).max(net.minecraft.core.Direction.Axis.Y);
+            return new Vec3(x + 0.5, top, z + 0.5);
+        }
+        BlockPos h = level.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, 0, z));
+        return Vec3.atBottomCenterOf(h);
+    }
+
+    /** Void safety net: anyone below the showroom floor is put straight back on the arrival pad. */
+    public static void guard(ServerPlayer player) {
+        if (isShowroom(player.level()) && player.getY() < ShowroomBuilder.FLOOR - 4) {
+            safeTeleport(player, (ServerLevel) player.level(), ARRIVAL, 0f, 5f);
+        }
     }
 
     public static void goBack(ServerPlayer player) {
@@ -9892,7 +10674,8 @@ public final class ShowroomDimension {
             pos = Vec3.atBottomCenterOf(target.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, spawn));
             yaw = 0f;
         }
-        player.teleportTo(target, pos.x, pos.y, pos.z, yaw, 0f);
+        pos = groundAt(target, pos);
+        safeTeleport(player, target, pos, yaw, 0f);
         target.playSound(null, BlockPos.containing(pos), ModSounds.PORTAL_WHOOSH.get(), SoundSource.PLAYERS, 1.0f, 0.8f);
     }
 }

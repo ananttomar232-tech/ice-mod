@@ -36,8 +36,6 @@ public final class ShopLogic {
         IceProgress.Entry e = data.entry(player.getUUID());
         if (e.points < tier.price) {
             long missing = tier.price - e.points;
-            player.displayClientMessage(Component.translatable("msg.ice_age_yantra.shop.locked", tier.displayName(),
-                    String.format("%,d", missing)).withStyle(ChatFormatting.RED), true);
             player.serverLevel().playSound(null, player.blockPosition(), SoundEvents.VILLAGER_NO, SoundSource.PLAYERS, 0.8f, 1.2f);
             return;
         }
@@ -52,9 +50,5 @@ public final class ShopLogic {
         data.setDirty();
         PacingEngine.sync(player);
         player.serverLevel().playSound(null, player.blockPosition(), ModSounds.PURCHASE.get(), SoundSource.PLAYERS, 1.0f, 1.0f);
-        ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new CelebratePacket(CelebratePacket.PURCHASE, tier.number));
-        player.sendSystemMessage(Component.translatable(first ? "msg.ice_age_yantra.shop.bought" : "msg.ice_age_yantra.shop.bought_again",
-                tier.displayName()).withStyle(ChatFormatting.AQUA));
-        player.sendSystemMessage(Component.translatable("msg.ice_age_yantra.shop.hint." + tier.id).withStyle(ChatFormatting.GRAY));
     }
 }

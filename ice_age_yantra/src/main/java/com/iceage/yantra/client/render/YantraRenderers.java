@@ -72,7 +72,7 @@ public final class YantraRenderers {
             float top = Mth.lerp(pt, be.prevTopDoorAngle, be.topDoorAngle);
             if (be.getLevel() != null) {
                 float since = be.getLevel().getGameTime() - be.slamTime + pt;
-                if (since < 14f && be.phase() == RetroFridgeBlockEntity.LOCKED) {
+                if (since < 14f && be.phase() == RetroFridgeBlockEntity.CLOSED) {
                     door += 7f * Mth.sin(since * 1.4f) * (1f - since / 14f);
                 }
             }

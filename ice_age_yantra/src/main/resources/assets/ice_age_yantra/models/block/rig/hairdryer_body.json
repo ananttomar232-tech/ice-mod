@@ -1,0 +1,20 @@
+{
+  "loader": "forge:obj",
+  "model": "ice_age_yantra:models/obj/hairdryer/body.obj",
+  "flip_v": false,
+  "emissive_ambient": true,
+  "automatic_culling": false,
+  "shade_quads": true,
+  "ambientocclusion": false,
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "particle": "ice_age_yantra:block/dryer_coil",
+    "dryer_coil": "ice_age_yantra:block/dryer_coil",
+    "dryer_grille": "ice_age_yantra:block/dryer_grille",
+    "dryer_grip": "ice_age_yantra:block/dryer_grip",
+    "dryer_inner": "ice_age_yantra:block/dryer_inner",
+    "dryer_metal": "ice_age_yantra:block/dryer_metal",
+    "dryer_shell": "ice_age_yantra:block/dryer_shell",
+    "dryer_switch": "ice_age_yantra:block/dryer_switch"
+  }
+}

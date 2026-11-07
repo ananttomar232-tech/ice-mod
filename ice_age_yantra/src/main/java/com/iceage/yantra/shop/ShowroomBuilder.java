@@ -19,7 +19,7 @@ import net.minecraft.world.level.saveddata.SavedData;
  * Yantras, a glowing title and the return portal.
  */
 public final class ShowroomBuilder {
-    public static final int VERSION = 4;
+    public static final int VERSION = 5;
     public static final int FLOOR = 63;
     public static final int X0 = -12, X1 = 12, Z0 = -10, Z1 = 22, TOP = 76;
     public static final BlockPos[] PEDESTALS = {
@@ -134,6 +134,13 @@ public final class ShowroomBuilder {
         BlockState portal = ModBlocks.ICE_PORTAL.get().defaultBlockState().setValue(IcePortalBlock.FACING, Direction.SOUTH);
         level.setBlock(new BlockPos(0, FLOOR + 1, Z0 + 1), portal.setValue(IcePortalBlock.HALF, DoubleBlockHalf.LOWER), Block.UPDATE_ALL);
         level.setBlock(new BlockPos(0, FLOOR + 2, Z0 + 1), portal.setValue(IcePortalBlock.HALF, DoubleBlockHalf.UPPER), Block.UPDATE_ALL);
+        // arrival pad: a solid glowing dais whose top is exactly Y = 65.0, centred on X = 0.5, Z = 0.5
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                set(level, dx, FLOOR, dz, packed);
+                set(level, dx, FLOOR + 1, dz, (dx == 0 && dz == 0) ? aurora : bricks);
+            }
+        }
         // frost carpet in front of the portal
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = 2; dz <= 4; dz++) {

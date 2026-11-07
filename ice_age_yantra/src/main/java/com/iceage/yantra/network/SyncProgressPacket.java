@@ -12,26 +12,29 @@ public class SyncProgressPacket {
     public final long points;
     public final int purchasedMask;
     public final long gained;
+    public final float speed;
 
-    public SyncProgressPacket(long points, int purchasedMask, long gained) {
+    public SyncProgressPacket(long points, int purchasedMask, long gained, float speed) {
         this.points = points;
         this.purchasedMask = purchasedMask;
         this.gained = gained;
+        this.speed = speed;
     }
 
     public SyncProgressPacket(FriendlyByteBuf buf) {
-        this(buf.readVarLong(), buf.readVarInt(), buf.readVarLong());
+        this(buf.readVarLong(), buf.readVarInt(), buf.readVarLong(), buf.readFloat());
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeVarLong(points);
         buf.writeVarInt(purchasedMask);
         buf.writeVarLong(gained);
+        buf.writeFloat(speed);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->
-                com.iceage.yantra.client.ClientProgress.update(points, purchasedMask, gained));
+                com.iceage.yantra.client.ClientProgress.update(points, purchasedMask, gained, speed));
         ctx.get().setPacketHandled(true);
     }
 }

@@ -52,18 +52,18 @@ public class GolaMachineBlockEntity extends YantraBlockEntity {
     @Override
     public void onUse(ServerPlayer player) {
         ServerLevel level = (ServerLevel) this.level;
-        if (phase == RUNAWAY) {
-            say(player, "msg.ice_age_yantra.gola.possessed", ChatFormatting.LIGHT_PURPLE);
-            return;
+        if (phase == RUNAWAY || phase == SPUTTER || phase == CRANK) return;
+        if (phase == DONE) {
+            // reusable forever: a fresh handle pops back on and the cranking starts over
+            cranks = 0;
+            snapped = false;
         }
-        if (phase == SPUTTER || phase == DONE || targetReachedFor(player)) {
-            say(player, "msg.ice_age_yantra.done", ChatFormatting.GOLD, Tier.GOLA.displayName(), Tier.FAN.displayName());
-            level.playSound(null, worldPosition, ModSounds.SQUEAK.get(), SoundSource.BLOCKS, 0.8f, 1.3f);
-            return;
-        }
-        if (phase == CRANK) return;
         owner = player.getUUID();
         cranks++;
+        // Tier 1 gag: Gotiya storms over with an empty bowl to stop the machine
+        if (cranks == 1 && !gotiyaAround(level)) {
+            trackGotiya(com.iceage.yantra.entity.ChillVillagerEntity.forGola(level, this));
+        }
         setPhase(CRANK);
         level.playSound(null, worldPosition, ModSounds.CRANK.get(), SoundSource.BLOCKS, 1.0f, 0.9f + 0.15f * cranks);
         say(player, "msg.ice_age_yantra.gola.crank", ChatFormatting.AQUA, cranks, Config.GOLA_CRANKS_TO_SNAP.get());
@@ -88,7 +88,10 @@ public class GolaMachineBlockEntity extends YantraBlockEntity {
                 if (phaseTicks == 18 || phaseTicks == 34) {
                     level.playSound(null, worldPosition, ModSounds.SQUEAK.get(), SoundSource.BLOCKS, 1.0f, phaseTicks == 18 ? 1.2f : 0.8f);
                 }
-                if (phaseTicks >= 60) setPhase(DONE);
+                if (phaseTicks >= 60) {
+                    cranks = 0;
+                    setPhase(DONE);
+                }
             }
             default -> {
             }
@@ -98,6 +101,7 @@ public class GolaMachineBlockEntity extends YantraBlockEntity {
     private void snap(ServerLevel level) {
         snapped = true;
         snapTime = level.getGameTime();
+        beginRun();
         targets.clear();
         targetIndex = 0;
         collectTargets(level, 4);

@@ -27,8 +27,9 @@ public class IcePortalRenderer implements BlockEntityRenderer<IcePortalBlockEnti
     public void render(IcePortalBlockEntity be, float pt, PoseStack ps, MultiBufferSource buf, int light, int overlay) {
         float t = be.age + pt;
         ps.pushPose();
-        ps.translate(0.5, 1.0, 0.5);
+        ps.translate(0.5, 1.3, 0.5);
         ps.mulPose(Axis.YP.rotationDegrees(180f - be.facing().toYRot()));
+        ps.scale(1.3f, 1.3f, 1.3f);
         // dark core so the swirl reads as a hole in space
         disc(ps, buf.getBuffer(RenderType.entityTranslucent(VORTEX)), 0.56f, 1.02f, t * 1.2f, 0.10f, 0.25f, 0.55f, 0.92f, 0.0f);
         VertexConsumer glow = buf.getBuffer(RenderType.entityTranslucentEmissive(VORTEX));
@@ -37,7 +38,7 @@ public class IcePortalRenderer implements BlockEntityRenderer<IcePortalBlockEnti
         float pulse = 0.5f + 0.5f * Mth.sin(t * 0.08f);
         disc(glow, ps, 0.30f + 0.04f * pulse, 0.55f + 0.06f * pulse, -t * 7.0f, 1f, 1f, 1f, 0.55f, 0.012f);
         ps.popPose();
-        YantraRig.glow(ps, buf, 0.5, 1.05, 0.5, 2.6f, 0.35f, 0.75f, 1.0f, 0.35f + 0.15f * pulse);
+        YantraRig.glow(ps, buf, 0.5, 1.35, 0.5, 3.3f, 0.35f, 0.75f, 1.0f, 0.35f + 0.15f * pulse);
     }
 
     private static void disc(PoseStack ps, VertexConsumer vc, float rx, float ry, float rotDeg, float r, float g, float b, float a, float z) {

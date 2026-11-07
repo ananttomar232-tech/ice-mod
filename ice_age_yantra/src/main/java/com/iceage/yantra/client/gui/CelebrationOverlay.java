@@ -23,6 +23,15 @@ public final class CelebrationOverlay {
     }
 
     public static void show(int kind, long value) {
+        if (kind == CelebratePacket.SEAMLESS) {
+            com.iceage.yantra.client.ClientEvents.seamlessUntil = System.currentTimeMillis() + 10_000L;
+            return;
+        }
+        if (kind == CelebratePacket.OPEN_SHOP) {
+            ClientHooks.openShop();
+        }
+        // No banners at all: the screen stays 100% clean (only the top-left counter is drawn).
+        if (kind != Integer.MIN_VALUE) return;
         rainbow = false;
         switch (kind) {
             case CelebratePacket.OPEN_SHOP -> {

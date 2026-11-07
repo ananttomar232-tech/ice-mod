@@ -54,6 +54,6 @@ public class IcePortalBlockEntity extends BlockEntity {
 
     @Override
     public AABB getRenderBoundingBox() {
-        return new AABB(worldPosition).inflate(1.5, 0, 1.5).expandTowards(0, 3, 0);
+        return new AABB(worldPosition).inflate(2.0, 0, 2.0).expandTowards(0, 3.5, 0);
     }
 }

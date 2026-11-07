@@ -56,14 +56,10 @@ public class AcUnitBlockEntity extends YantraBlockEntity {
     /** Called by the Turbo Remote. Returns the LCD mode to show. */
     public int pressTurbo(ServerPlayer player) {
         ServerLevel level = (ServerLevel) this.level;
-        if (phase == STANDBY || targetReachedFor(player)) {
-            if (owner == null) owner = player.getUUID();
-            if (phase != STANDBY) setPhase(STANDBY);
-            level.playSound(null, worldPosition, ModSounds.REMOTE_STANDBY.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
-            return RemoteHudPacket.STANDBY;
-        }
+        // reusable forever: STANDBY is only a pause, the next press starts a fresh TURBO run
         owner = player.getUUID();
         if (phase != TURBO) {
+            beginRun();
             row = 0;
             col = 0;
             layer = 0;

@@ -63,22 +63,10 @@ public class RetroFridgeBlockEntity extends YantraBlockEntity {
     @Override
     public void onUse(ServerPlayer player) {
         ServerLevel level = (ServerLevel) this.level;
-        if (phase == LOCKED) {
-            level.playSound(null, worldPosition, ModSounds.FRIDGE_RATTLE.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
-            say(player, villagerInside ? "msg.ice_age_yantra.fridge.locked_villager" : "msg.ice_age_yantra.fridge.locked", ChatFormatting.GOLD);
-            return;
-        }
-        if (phase == OPEN) {
-            say(player, "msg.ice_age_yantra.fridge.open", ChatFormatting.AQUA);
-            return;
-        }
-        if (targetReachedFor(player)) {
-            owner = player.getUUID();
-            lock(level);
-            say(player, "msg.ice_age_yantra.done", ChatFormatting.GOLD, Tier.FRIDGE.displayName(), Tier.AC.displayName());
-            return;
-        }
+        if (phase == OPEN) return;
+        // reusable forever: the door never stays locked, every click starts a fresh freezing run
         owner = player.getUUID();
+        beginRun();
         buildField(level);
         setPhase(OPEN);
         level.playSound(null, worldPosition, ModSounds.FRIDGE_OPEN.get(), SoundSource.BLOCKS, 1.2f, 1.0f);
@@ -107,7 +95,7 @@ public class RetroFridgeBlockEntity extends YantraBlockEntity {
     protected void serverTick(ServerLevel level) {
         if (phase == OPEN) {
             open(level);
-        } else if (phase == LOCKED && villagerInside) {
+        } else if (phase == CLOSED && villagerInside) {
             if (phaseTicks % 90 == 30) {
                 level.playSound(null, worldPosition, ModSounds.VILLAGER_RELIEF.get(), SoundSource.NEUTRAL, 0.45f, 0.9f);
             }
@@ -171,7 +159,7 @@ public class RetroFridgeBlockEntity extends YantraBlockEntity {
     }
 
     private void lock(ServerLevel level) {
-        setPhase(LOCKED);
+        setPhase(CLOSED);
         slamTime = level.getGameTime();
         sync();
         level.playSound(null, worldPosition, ModSounds.FRIDGE_SLAM.get(), SoundSource.BLOCKS, 1.5f, 1.0f);
@@ -182,6 +170,26 @@ public class RetroFridgeBlockEntity extends YantraBlockEntity {
             ServerPlayer p = level.getServer().getPlayerList().getPlayer(owner);
             if (p != null) say(p, "msg.ice_age_yantra.fridge.slam", ChatFormatting.AQUA);
         }
+    }
+
+    /** /iceage gotiya 3: Gotiya walks over and sits in the fridge (opens the door if it is closed). */
+    @Nullable
+    public ChillVillagerEntity summonVillager(ServerLevel level, ServerPlayer by) {
+        if (phase != OPEN) {
+            owner = by.getUUID();
+            beginRun();
+            buildField(level);
+            setPhase(OPEN);
+            level.playSound(null, worldPosition, ModSounds.FRIDGE_OPEN.get(), SoundSource.BLOCKS, 1.2f, 1.0f);
+        }
+        if (villager != null && level.getEntity(villager) instanceof ChillVillagerEntity old && old.isAlive()) {
+            if (old.isSitting()) return old;
+            old.discard();
+        }
+        villager = null;
+        villagerInside = false;
+        spawnVillager(level);
+        return villager != null && level.getEntity(villager) instanceof ChillVillagerEntity v ? v : null;
     }
 
     private void spawnVillager(ServerLevel level) {
@@ -224,7 +232,7 @@ public class RetroFridgeBlockEntity extends YantraBlockEntity {
     }
 
     public boolean canSeat(ChillVillagerEntity v) {
-        return !villagerInside && phase != LOCKED && (villager == null || villager.equals(v.getUUID()));
+        return !villagerInside && (villager == null || villager.equals(v.getUUID()));
     }
 
     public void onVillagerSeated(ChillVillagerEntity v) {

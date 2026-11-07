@@ -143,7 +143,7 @@ public class ShopScreen extends Screen {
             int pw2 = (int) (font.width(price) * 0.85f);
             GuiTex.blitFull(g, GuiTex.ICE_CUBE, cx + cw / 2 - pw2 / 2 - 11, cy + chh - 44, 9, 9, 128, 128);
             GuiTex.centered(g, font, price, cx + cw / 2 + 5, cy + chh - 42, 0xEFFFFF, 0.85f);
-            GuiTex.centered(g, font, "stops at " + String.format("%,d", tier.target), cx + cw / 2, cy + chh - 32, 0x8FB8D8, 0.7f);
+            GuiTex.centered(g, font, "target " + String.format("%,d", tier.target), cx + cw / 2, cy + chh - 32, 0x8FB8D8, 0.7f);
             int[] br = buttonRect(i);
             boolean bh = in(br, mouseX, mouseY + lift);
             ResourceLocation btn = !affordable ? GuiTex.BTN_LOCKED : owned ? GuiTex.BTN_OWNED : bh ? GuiTex.BTN_HOVER : GuiTex.BTN_NORMAL;

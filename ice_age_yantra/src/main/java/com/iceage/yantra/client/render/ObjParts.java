@@ -36,6 +36,7 @@ public final class ObjParts {
             TRUCK_WHEEL_FR = part("truck_wheel_fr"), TRUCK_WHEEL_RL = part("truck_wheel_rl"), TRUCK_WHEEL_RR = part("truck_wheel_rr"),
             TRUCK_DECALS = part("truck_decals"), TRUCK_GLASS = part("truck_glass");
     public static final ResourceLocation SHOP_ORB = part("shop_orb_base");
+    public static final ResourceLocation HAIRDRYER = part("hairdryer_body");
 
     private ObjParts() {
     }

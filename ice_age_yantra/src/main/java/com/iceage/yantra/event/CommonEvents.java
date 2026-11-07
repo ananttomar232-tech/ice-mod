@@ -51,6 +51,13 @@ public final class CommonEvents {
     }
 
     @SubscribeEvent
+    public static void onPlayerTick(TickEvent.PlayerTickEvent e) {
+        if (e.phase == TickEvent.Phase.END && e.player instanceof ServerPlayer sp && sp.tickCount % 5 == 0) {
+            com.iceage.yantra.shop.ShowroomDimension.guard(sp);
+        }
+    }
+
+    @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent e) {
         if (e.phase == TickEvent.Phase.END && e.getServer() != null) PacingEngine.flush(e.getServer());
     }
@@ -95,6 +102,5 @@ public final class CommonEvents {
         inv.selected = 0;
         entry.portalGiven = true;
         data.setDirty();
-        p.sendSystemMessage(Component.translatable("msg.ice_age_yantra.welcome").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
     }
 }

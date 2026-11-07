@@ -47,7 +47,7 @@ public class IceCreamVanItem extends Item {
             van.moveTo(at.x, at.y + 1, at.z, yaw, 0f);
             if (!level.noCollision(van, van.getBoundingBox().deflate(0.05))) {
                 if (player != null) {
-                    player.displayClientMessage(Component.translatable("msg.ice_age_yantra.van.no_space").withStyle(ChatFormatting.RED), true);
+                    
                 }
                 return InteractionResult.FAIL;
             }

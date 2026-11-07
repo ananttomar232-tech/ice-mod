@@ -11,6 +11,8 @@ import com.iceage.yantra.registry.ModItems;
 import com.iceage.yantra.shop.ShowroomBuilder;
 import com.iceage.yantra.shop.ShowroomDimension;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.FloatArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -53,13 +55,25 @@ public final class IceAgeCommand {
                 .then(Commands.literal("rebuildshowroom").requires(s -> s.hasPermission(2)).executes(c -> {
                     ServerLevel shop = c.getSource().getServer().getLevel(ShowroomDimension.KEY);
                     if (shop != null) ShowroomBuilder.rebuild(shop);
-                    c.getSource().sendSuccess(() -> Component.literal("Frozen Showroom rebuilt.").withStyle(ChatFormatting.AQUA), true);
                     return 1;
                 }))
                 .then(Commands.literal("reset").requires(s -> s.hasPermission(2))
                         .executes(c -> reset(c, List.of(c.getSource().getPlayerOrException())))
                         .then(Commands.argument("targets", EntityArgument.players())
                                 .executes(c -> reset(c, EntityArgument.getPlayers(c, "targets")))))
+                .then(Commands.literal("counter").requires(s -> s.hasPermission(2))
+                        .then(Commands.literal("reset").executes(c -> counterSet(c, 0L)))
+                        .then(Commands.literal("set").then(Commands.argument("amount", LongArgumentType.longArg(0, 10_000_000L))
+                                .executes(c -> counterSet(c, LongArgumentType.getLong(c, "amount")))))
+                        .then(Commands.literal("speed").then(Commands.argument("multiplier", FloatArgumentType.floatArg(0.1f, 1000f))
+                                .executes(c -> {
+                                    ServerPlayer p = c.getSource().getPlayerOrException();
+                                    PacingEngine.setSpeed(p.server, p.getUUID(), FloatArgumentType.getFloat(c, "multiplier"));
+                                    PacingEngine.sync(p);
+                                    return 1;
+                                }))))
+                .then(Commands.literal("gotiya").requires(s -> s.hasPermission(2))
+                        .then(Commands.argument("tier_number", IntegerArgumentType.integer(1, 5)).executes(IceAgeCommand::gotiya)))
                 .then(Commands.literal("points").requires(s -> s.hasPermission(2))
                         .then(Commands.literal("set").then(Commands.argument("amount", LongArgumentType.longArg(0, 10_000_000L))
                                 .executes(c -> points(c, List.of(c.getSource().getPlayerOrException()), true))
@@ -72,6 +86,54 @@ public final class IceAgeCommand {
         );
     }
 
+    private static int counterSet(CommandContext<CommandSourceStack> c, long value) throws CommandSyntaxException {
+        ServerPlayer p = c.getSource().getPlayerOrException();
+        PacingEngine.set(p.server, p.getUUID(), value);
+        PacingEngine.sync(p);
+        return 1;
+    }
+
+    /** /iceage gotiya <tier>: makes Gotiya show up at the nearest Yantra of that tier (5 = hairdryer finale). */
+    private static int gotiya(CommandContext<CommandSourceStack> c) throws CommandSyntaxException {
+        ServerPlayer p = c.getSource().getPlayerOrException();
+        int tier = IntegerArgumentType.getInteger(c, "tier_number");
+        ServerLevel level = p.serverLevel();
+        if (tier == 5) {
+            com.iceage.yantra.entity.ChillVillagerEntity.spawnHairdryerFinale(p);
+            return 1;
+        }
+        com.iceage.yantra.block.YantraBlockEntity best = null;
+        double bestD = 96 * 96;
+        BlockPos at = p.blockPosition();
+        for (int cx = (at.getX() >> 4) - 6; cx <= (at.getX() >> 4) + 6; cx++) {
+            for (int cz = (at.getZ() >> 4) - 6; cz <= (at.getZ() >> 4) + 6; cz++) {
+                if (!level.hasChunk(cx, cz)) continue;
+                for (var be : level.getChunk(cx, cz).getBlockEntities().values()) {
+                    if (be instanceof com.iceage.yantra.block.YantraBlockEntity y && y.tier().number == tier) {
+                        double d = be.getBlockPos().distSqr(at);
+                        if (d < bestD) {
+                            bestD = d;
+                            best = y;
+                        }
+                    }
+                }
+            }
+        }
+        if (best == null) {
+            c.getSource().sendFailure(Component.literal("Place a Tier " + tier + " Yantra nearby first."));
+            return 0;
+        }
+        com.iceage.yantra.entity.ChillVillagerEntity v;
+        if (best instanceof com.iceage.yantra.block.GolaMachineBlockEntity g) {
+            v = com.iceage.yantra.entity.ChillVillagerEntity.forGola(level, g);
+        } else if (best instanceof com.iceage.yantra.block.RetroFridgeBlockEntity f) {
+            v = f.summonVillager(level, p);
+        } else {
+            v = com.iceage.yantra.entity.ChillVillagerEntity.forFront(level, best);
+        }
+        return v != null ? 1 : 0;
+    }
+
     private static int points(CommandContext<CommandSourceStack> c, Collection<ServerPlayer> targets, boolean set) {
         long amount = LongArgumentType.getLong(c, "amount");
         for (ServerPlayer p : targets) {
@@ -79,8 +141,6 @@ public final class IceAgeCommand {
             else PacingEngine.award(p.server, p.getUUID(), amount);
             PacingEngine.sync(p);
         }
-        c.getSource().sendSuccess(() -> Component.literal((set ? "Set" : "Added") + " " + String.format("%,d", amount)
-                + " frozen blocks for " + targets.size() + " player(s).").withStyle(ChatFormatting.AQUA), true);
         return targets.size();
     }
 
@@ -94,7 +154,6 @@ public final class IceAgeCommand {
             data.setDirty();
             PacingEngine.sync(p);
         }
-        c.getSource().sendSuccess(() -> Component.literal("Ice Age progress reset for " + targets.size() + " player(s).").withStyle(ChatFormatting.AQUA), true);
         return targets.size();
     }
 
@@ -131,7 +190,6 @@ public final class IceAgeCommand {
         level.setBlock(portal, lower, Block.UPDATE_ALL);
         level.setBlock(portal.above(), lower.setValue(IcePortalBlock.HALF, DoubleBlockHalf.UPPER), Block.UPDATE_ALL);
         PacingEngine.sync(p);
-        c.getSource().sendSuccess(() -> Component.translatable("msg.ice_age_yantra.setup").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD), true);
         return 1;
     }
 

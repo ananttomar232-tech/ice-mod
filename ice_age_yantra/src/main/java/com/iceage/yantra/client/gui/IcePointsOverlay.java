@@ -26,8 +26,8 @@ public final class IcePointsOverlay {
         Font font = mc.font;
         double shown = Mth.lerp(pt, ClientProgress.prevDisplayed, ClientProgress.displayed);
 
-        float mult = 1.0f;
-        if (mc.player.getVehicle() instanceof IceCreamTruckEntity van) mult = van.combo();
+        float mult = ClientProgress.speed;
+        if (mc.player.getVehicle() instanceof IceCreamTruckEntity van) mult *= van.combo();
         String multText = String.format("x%.1f", mult);
         String total = " / 10,000,000";
 
@@ -64,13 +64,16 @@ public final class IcePointsOverlay {
         int multColor = mult > 1.0f ? 0x7FE6FF : 0xFFFFFF;
         g.drawString(font, multText, x + barW - 10 - font.width(multText), ty, multColor, true);
 
-        for (ClientProgress.Floater f : ClientProgress.FLOATERS) {
-            float a = 1f - (f.age + pt) / 30f;
-            int alpha = (int) (a * 255) & 0xFF;
-            if (a <= 0 || alpha < 8) continue;
+        if (!ClientProgress.FLOATERS.isEmpty()) {
+            ClientProgress.Floater f = ClientProgress.FLOATERS.get(0);
+            float life = (f.age + pt) / 30f;
+            float a = 1f - life * life;
+            int alpha = (int) (Mth.clamp(a, 0f, 1f) * 255) & 0xFF;
+            if (alpha < 8) return;
             String txt = "+" + String.format("%,d", f.amount);
-            float fx = x + barW / 2f + (f.x - 0.5f) * 60;
-            float fy = y + barH + 2 + (f.age + pt) * 0.8f;
+            // one clean number under the counter digits, drifting gently upward while it fades
+            float fx = x + 30 + font.width(txt) * 0.4f;
+            float fy = y + barH + 14 - (f.age + pt) * 0.4f;
             g.pose().pushPose();
             g.pose().translate(fx, fy, 0);
             g.pose().scale(0.8f, 0.8f, 1f);

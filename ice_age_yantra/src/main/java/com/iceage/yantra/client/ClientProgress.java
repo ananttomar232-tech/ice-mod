@@ -10,6 +10,8 @@ import java.util.List;
 /** Client mirror of the frozen-block counter + the state of the animated HUD counter. */
 public final class ClientProgress {
     public static long points;
+    /** Counter speed multiplier set with /iceage counter speed (shown as the x1.0 label). */
+    public static float speed = 1.0f;
     public static int mask;
     public static double displayed;
     public static double prevDisplayed;
@@ -19,7 +21,7 @@ public final class ClientProgress {
     private static boolean initialised;
 
     public static class Floater {
-        public final long amount;
+        public long amount;
         public int age;
         public final float x;
 
@@ -32,7 +34,8 @@ public final class ClientProgress {
     private ClientProgress() {
     }
 
-    public static void update(long newPoints, int newMask, long gained) {
+    public static void update(long newPoints, int newMask, long gained, float newSpeed) {
+        speed = newSpeed;
         points = newPoints;
         mask = newMask;
         if (!initialised) {
@@ -49,7 +52,14 @@ public final class ClientProgress {
                 float pitch = (float) Math.min(2.0, 0.9 + Math.log10(Math.max(1, gained)) * 0.18);
                 mc.getSoundManager().play(SimpleSoundInstance.forUI(ModSounds.DING.get(), pitch, 0.45f));
             }
-            if (FLOATERS.size() < 8) FLOATERS.add(new Floater(gained, (float) Math.random()));
+            // exactly one floating number at a time: new gains merge into it while it is still young,
+            // otherwise it is replaced by a fresh one (no stacking, no overlap)
+            if (!FLOATERS.isEmpty() && FLOATERS.get(0).age < 12) {
+                FLOATERS.get(0).amount += gained;
+            } else {
+                FLOATERS.clear();
+                FLOATERS.add(new Floater(gained, 0.5f));
+            }
         }
         if (newPoints < displayed) displayed = prevDisplayed = newPoints;
     }

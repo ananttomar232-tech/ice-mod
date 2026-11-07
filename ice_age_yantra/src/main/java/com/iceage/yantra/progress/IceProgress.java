@@ -24,6 +24,7 @@ public class IceProgress extends SavedData {
         public int purchasedMask;
         public boolean portalGiven;
         public boolean climaxDone;
+        public float speed = 1.0f;
         public ResourceKey<Level> returnDim;
         public Vec3 returnPos;
         public float returnYaw;
@@ -34,6 +35,7 @@ public class IceProgress extends SavedData {
             t.putInt("purchased", purchasedMask);
             t.putBoolean("portalGiven", portalGiven);
             t.putBoolean("climax", climaxDone);
+            t.putFloat("speed", speed);
             if (returnDim != null && returnPos != null) {
                 t.putString("rdim", returnDim.location().toString());
                 t.putDouble("rx", returnPos.x);
@@ -51,6 +53,7 @@ public class IceProgress extends SavedData {
             e.purchasedMask = t.getInt("purchased");
             e.portalGiven = t.getBoolean("portalGiven");
             e.climaxDone = t.getBoolean("climax");
+            e.speed = t.contains("speed") ? t.getFloat("speed") : 1.0f;
             if (t.contains("rdim")) {
                 e.returnDim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(t.getString("rdim")));
                 e.returnPos = new Vec3(t.getDouble("rx"), t.getDouble("ry"), t.getDouble("rz"));

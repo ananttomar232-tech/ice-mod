@@ -9,7 +9,7 @@ import java.util.function.Supplier;
 
 /** Server -> client: big on-screen banners (target reached, purchase, 10M climax). */
 public class CelebratePacket {
-    public static final int TARGET = 0, CLIMAX = 1, PURCHASE = 2, LOCKED = 3, OPEN_SHOP = 9;
+    public static final int TARGET = 0, CLIMAX = 1, PURCHASE = 2, LOCKED = 3, OPEN_SHOP = 9, SEAMLESS = 10;
     public final int kind;
     public final long value;
 
@@ -28,8 +28,8 @@ public class CelebratePacket {
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
-        DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->
-                com.iceage.yantra.client.gui.CelebrationOverlay.show(kind, value));
+        ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->
+                com.iceage.yantra.client.gui.CelebrationOverlay.show(kind, value)));
         ctx.get().setPacketHandled(true);
     }
 }

@@ -47,6 +47,7 @@ public final class PacingEngine {
         IceProgress.Entry e = data.entry(owner);
         long before = e.points;
         if (before >= Tier.FINAL_TARGET) return 0;
+        amount = Math.max(1L, Math.round(amount * (double) e.speed));
         long after = Math.min(Tier.FINAL_TARGET, before + amount);
         e.points = after;
         data.setDirty();
@@ -69,13 +70,22 @@ public final class PacingEngine {
         PENDING_GAIN.merge(owner, 0L, Long::sum);
     }
 
+    /** Counter speed multiplier (x0.1 .. x1000); every award is multiplied by it. */
+    public static void setSpeed(MinecraftServer server, UUID owner, float speed) {
+        IceProgress data = IceProgress.get(server);
+        IceProgress.Entry e = data.entry(owner);
+        e.speed = Math.max(0.1f, Math.min(1000f, speed));
+        data.setDirty();
+        PENDING_GAIN.merge(owner, 0L, Long::sum);
+    }
+
     private static void onTargetReached(MinecraftServer server, ServerPlayer player, Tier tier, IceProgress.Entry e) {
         if (player == null) return;
         if (tier == Tier.VAN) {
             if (e.climaxDone) return;
             e.climaxDone = true;
-            ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new CelebratePacket(CelebratePacket.CLIMAX, Tier.FINAL_TARGET));
-            player.sendSystemMessage(Component.translatable("msg.ice_age_yantra.climax").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
+            // finale: Gotiya staggers in with his giant hairdryer to melt the world... and fails (ice never melts)
+            com.iceage.yantra.entity.ChillVillagerEntity.spawnHairdryerFinale(player);
             ServerLevel level = player.serverLevel();
             level.playSound(null, player.blockPosition(), ModSounds.FANFARE.get(), SoundSource.PLAYERS, 1.6f, 1.0f);
             for (int i = 0; i < 12; i++) {
@@ -84,11 +94,7 @@ public final class PacingEngine {
             }
             return;
         }
-        ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new CelebratePacket(CelebratePacket.TARGET, tier.number));
-        Tier next = Tier.byNumber(tier.number + 1);
-        player.sendSystemMessage(Component.translatable("msg.ice_age_yantra.target_reached", tier.displayName(),
-                String.format("%,d", tier.target), next == null ? Component.empty() : next.displayName())
-                .withStyle(ChatFormatting.AQUA));
+        // no banner, no chat: only a soft chime
         player.serverLevel().playSound(null, player.blockPosition(), ModSounds.TARGET_REACHED.get(), SoundSource.PLAYERS, 1.0f, 1.0f);
     }
 
@@ -120,7 +126,7 @@ public final class PacingEngine {
             ServerPlayer p = server.getPlayerList().getPlayer(en.getKey());
             if (p != null) {
                 IceProgress.Entry e = data.entry(en.getKey());
-                ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new SyncProgressPacket(e.points, e.purchasedMask, en.getValue()));
+                ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new SyncProgressPacket(e.points, e.purchasedMask, en.getValue(), e.speed));
             }
             it.remove();
         }
@@ -128,6 +134,6 @@ public final class PacingEngine {
 
     public static void sync(ServerPlayer p) {
         IceProgress.Entry e = IceProgress.get(p.server).entry(p.getUUID());
-        ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new SyncProgressPacket(e.points, e.purchasedMask, 0));
+        ModNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new SyncProgressPacket(e.points, e.purchasedMask, 0, e.speed));
     }
 }

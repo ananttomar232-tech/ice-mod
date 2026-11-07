@@ -29,6 +29,7 @@ public class IceCreamTruckRenderer extends EntityRenderer<IceCreamTruckEntity> {
         ps.mulPose(Axis.ZP.rotationDegrees(lean));
         float bounce = Math.abs(e.groundSpeed) > 0.05f ? 0.015f * Mth.sin((e.tickCount + pt) * 1.7f) : 0f;
         ps.translate(0, bounce, 0);
+        ps.scale(IceCreamTruckEntity.VAN_SCALE, IceCreamTruckEntity.VAN_SCALE, IceCreamTruckEntity.VAN_SCALE);
         float wheel = Mth.lerp(pt, e.prevWheelAngle, e.wheelAngle);
         float steer = Mth.lerp(pt, e.prevSteer, e.steer);
         YantraRig.van(ps, buf, light, OverlayTexture.NO_OVERLAY, wheel, steer, e.tickCount + pt, true);

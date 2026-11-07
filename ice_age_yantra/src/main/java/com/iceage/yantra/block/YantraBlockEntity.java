@@ -33,6 +33,8 @@ public abstract class YantraBlockEntity extends BlockEntity {
     protected int phase;
     protected int phaseTicks;
     public int age;
+    protected long runUnits, runBudget;
+    protected boolean runBelowTarget;
 
     protected YantraBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
@@ -49,6 +51,19 @@ public abstract class YantraBlockEntity extends BlockEntity {
 
     public boolean wantsUse(Player player) {
         return true;
+    }
+
+    /** Gotiya currently reacting to this Yantra (null or gone = spawn a fresh one). */
+    @Nullable
+    protected UUID gotiya;
+
+    protected boolean gotiyaAround(ServerLevel level) {
+        return gotiya != null && level.getEntity(gotiya) instanceof com.iceage.yantra.entity.ChillVillagerEntity v && v.isAlive()
+                && v.state() != com.iceage.yantra.entity.ChillVillagerEntity.FLEEING;
+    }
+
+    protected void trackGotiya(@Nullable com.iceage.yantra.entity.ChillVillagerEntity v) {
+        if (v != null) gotiya = v.getUUID();
     }
 
     public int phase() {
@@ -90,23 +105,34 @@ public abstract class YantraBlockEntity extends BlockEntity {
         return level == null ? 0 : PacingEngine.points(level.getServer(), owner);
     }
 
+    /**
+     * Starts a fresh run. Yantras are reusable forever: a run lasts until the owner reaches this Yantra's
+     * target, or, when the owner is already past it, for one full "tier's worth" of work (target - price).
+     */
+    protected void beginRun() {
+        long p = ownerPoints();
+        runUnits = 0;
+        runBelowTarget = p < tier().target;
+        runBudget = runBelowTarget ? tier().target - p : Math.max(25, tier().target - tier().price);
+    }
+
+    /** True once the current run has used up its budget. */
     protected boolean targetReached() {
-        return owner != null && level != null && PacingEngine.reached(level.getServer(), owner, tier().target);
+        if (owner == null || level == null) return true;
+        if (runBelowTarget && ownerPoints() >= tier().target) return true;
+        return runUnits >= runBudget;
     }
 
-    protected boolean targetReachedFor(Player p) {
-        return level != null && PacingEngine.reached(level.getServer(), p.getUUID(), tier().target);
-    }
-
-    /** Pays frozen blocks to the owner; returns true when this Yantra's target has now been reached. */
+    /** Pays frozen blocks to the owner; returns true when the current run is finished. */
     protected boolean pay(long amount) {
         if (level == null || owner == null) return false;
         PacingEngine.award(level.getServer(), owner, amount);
+        runUnits += amount;
         return targetReached();
     }
 
+    /** The screen stays clean: Yantras never post chat or action-bar messages. */
     protected void say(ServerPlayer p, String key, ChatFormatting color, Object... args) {
-        p.displayClientMessage(Component.translatable(key, args).withStyle(color), true);
     }
 
     public void sync() {
@@ -120,12 +146,18 @@ public abstract class YantraBlockEntity extends BlockEntity {
         tag.putInt("phase", phase);
         tag.putInt("phaseTicks", phaseTicks);
         if (owner != null) tag.putUUID("owner", owner);
+        tag.putLong("runUnits", runUnits);
+        tag.putLong("runBudget", runBudget);
+        tag.putBoolean("runBelow", runBelowTarget);
     }
 
     protected void loadSync(CompoundTag tag) {
         phase = tag.getInt("phase");
         phaseTicks = tag.getInt("phaseTicks");
         owner = tag.hasUUID("owner") ? tag.getUUID("owner") : null;
+        runUnits = tag.getLong("runUnits");
+        runBudget = tag.getLong("runBudget");
+        runBelowTarget = tag.getBoolean("runBelow");
     }
 
     @Override

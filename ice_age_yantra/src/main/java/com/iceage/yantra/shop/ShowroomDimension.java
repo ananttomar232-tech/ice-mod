@@ -22,7 +22,7 @@ import java.util.UUID;
 /** The dedicated Frozen Showroom dimension and the teleport logic of the ice portals. */
 public final class ShowroomDimension {
     public static final ResourceKey<Level> KEY = ResourceKey.create(Registries.DIMENSION, IceAgeYantra.id("frozen_showroom"));
-    public static final Vec3 ARRIVAL = new Vec3(0.5, 64.0, -5.5);
+    public static final Vec3 ARRIVAL = new Vec3(0.5, 65.0, 0.5);
     private static final Map<UUID, Long> COOLDOWN = new HashMap<>();
 
     private ShowroomDimension() {
@@ -66,10 +66,52 @@ public final class ShowroomDimension {
         e.returnPos = player.position().subtract(look.scale(1.6));
         e.returnYaw = player.getYRot() + 180f;
         data.setDirty();
+        shop.getChunk(0, 0);
         ShowroomBuilder.ensureBuilt(shop);
-        player.teleportTo(shop, ARRIVAL.x, ARRIVAL.y, ARRIVAL.z, 0f, 5f);
+        safeTeleport(player, shop, ARRIVAL, 0f, 5f);
         shop.playSound(null, BlockPos.containing(ARRIVAL), ModSounds.PORTAL_WHOOSH.get(), SoundSource.PLAYERS, 1.0f, 1.0f);
-        player.displayClientMessage(Component.translatable("msg.ice_age_yantra.showroom.welcome").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD), true);
+    }
+
+    /** Teleports with zero velocity and no accumulated fall damage. */
+    public static void safeTeleport(ServerPlayer player, ServerLevel level, Vec3 pos, float yaw, float pitch) {
+        player.stopRiding();
+        if (player.level() != level) {
+            // tell the client to skip the "Loading terrain" screen for this hop
+            com.iceage.yantra.network.ModNetwork.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
+                    new com.iceage.yantra.network.CelebratePacket(com.iceage.yantra.network.CelebratePacket.SEAMLESS, 0));
+        }
+        player.setDeltaMovement(Vec3.ZERO);
+        player.fallDistance = 0f;
+        player.teleportTo(level, pos.x, pos.y, pos.z, yaw, pitch);
+        player.setDeltaMovement(Vec3.ZERO);
+        player.fallDistance = 0f;
+        player.hurtMarked = true;
+        player.connection.resetPosition();
+    }
+
+    /** Finds solid ground with two free blocks above it, near the remembered spot (never mid-air, never inside blocks). */
+    public static Vec3 groundAt(ServerLevel level, Vec3 near) {
+        int x = net.minecraft.util.Mth.floor(near.x), z = net.minecraft.util.Mth.floor(near.z);
+        level.getChunk(x >> 4, z >> 4);
+        int startY = Math.min(level.getMaxBuildHeight() - 3, net.minecraft.util.Mth.floor(near.y) + 3);
+        for (int y = startY; y > Math.max(level.getMinBuildHeight(), startY - 48); y--) {
+            BlockPos g = new BlockPos(x, y, z);
+            if (level.getBlockState(g).getCollisionShape(level, g).isEmpty()) continue;
+            if (!level.getBlockState(g.above()).getCollisionShape(level, g.above()).isEmpty()) continue;
+            if (!level.getBlockState(g.above(2)).getCollisionShape(level, g.above(2)).isEmpty()) continue;
+            if (level.getBlockState(g).getBlock() instanceof com.iceage.yantra.block.IcePortalBlock) continue;
+            double top = g.getY() + level.getBlockState(g).getCollisionShape(level, g).max(net.minecraft.core.Direction.Axis.Y);
+            return new Vec3(x + 0.5, top, z + 0.5);
+        }
+        BlockPos h = level.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, 0, z));
+        return Vec3.atBottomCenterOf(h);
+    }
+
+    /** Void safety net: anyone below the showroom floor is put straight back on the arrival pad. */
+    public static void guard(ServerPlayer player) {
+        if (isShowroom(player.level()) && player.getY() < ShowroomBuilder.FLOOR - 4) {
+            safeTeleport(player, (ServerLevel) player.level(), ARRIVAL, 0f, 5f);
+        }
     }
 
     public static void goBack(ServerPlayer player) {
@@ -84,7 +126,8 @@ public final class ShowroomDimension {
             pos = Vec3.atBottomCenterOf(target.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, spawn));
             yaw = 0f;
         }
-        player.teleportTo(target, pos.x, pos.y, pos.z, yaw, 0f);
+        pos = groundAt(target, pos);
+        safeTeleport(player, target, pos, yaw, 0f);
         target.playSound(null, BlockPos.containing(pos), ModSounds.PORTAL_WHOOSH.get(), SoundSource.PLAYERS, 1.0f, 0.8f);
     }
 }

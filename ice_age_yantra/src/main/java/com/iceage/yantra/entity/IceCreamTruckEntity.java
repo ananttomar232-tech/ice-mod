@@ -44,6 +44,8 @@ import java.util.UUID;
  * around it. Points scale with a growing combo so the counter surges all the way to 10,000,000.
  */
 public class IceCreamTruckEntity extends Entity {
+    /** The van is drawn 1.4x bigger than its rig model (seat, hitbox and effects scale with it). */
+    public static final float VAN_SCALE = 1.4f;
     private static final EntityDataAccessor<Float> DATA_MAX_SPEED = SynchedEntityData.defineId(IceCreamTruckEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Integer> DATA_COMBO = SynchedEntityData.defineId(IceCreamTruckEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> DATA_HONK = SynchedEntityData.defineId(IceCreamTruckEntity.class, EntityDataSerializers.INT);
@@ -168,21 +170,21 @@ public class IceCreamTruckEntity extends Entity {
     protected void positionRider(Entity passenger, Entity.MoveFunction fn) {
         if (!hasPassenger(passenger)) return;
         float yaw = getYRot() * Mth.DEG_TO_RAD;
-        double lx = com.iceage.yantra.RigData.TRUCK_SEAT_X, lz = com.iceage.yantra.RigData.TRUCK_SEAT_Z;
+        double lx = com.iceage.yantra.RigData.TRUCK_SEAT_X * VAN_SCALE, lz = com.iceage.yantra.RigData.TRUCK_SEAT_Z * VAN_SCALE;
         double ox = lx * Mth.cos(yaw) - lz * Mth.sin(yaw);
         double oz = lx * Mth.sin(yaw) + lz * Mth.cos(yaw);
-        fn.accept(passenger, getX() + ox, getY() + com.iceage.yantra.RigData.TRUCK_SEAT_Y + passenger.getMyRidingOffset(), getZ() + oz);
+        fn.accept(passenger, getX() + ox, getY() + com.iceage.yantra.RigData.TRUCK_SEAT_Y * VAN_SCALE + passenger.getMyRidingOffset(), getZ() + oz);
     }
 
     @Override
     public double getPassengersRidingOffset() {
-        return com.iceage.yantra.RigData.TRUCK_SEAT_Y;
+        return com.iceage.yantra.RigData.TRUCK_SEAT_Y * VAN_SCALE;
     }
 
     @Override
     public Vec3 getDismountLocationForPassenger(LivingEntity passenger) {
         float yaw = getYRot() * Mth.DEG_TO_RAD;
-        for (double side : new double[]{-1.7, 1.7}) {
+        for (double side : new double[]{-2.4, 2.4}) {
             double ox = side * Mth.cos(yaw);
             double oz = side * Mth.sin(yaw);
             Vec3 p = new Vec3(getX() + ox, getY() + 0.1, getZ() + oz);
@@ -276,12 +278,12 @@ public class IceCreamTruckEntity extends Entity {
         int half = Config.VAN_HIGHWAY_WIDTH.get() / 2;
         int changed = 0;
         java.util.HashSet<Long> done = new java.util.HashSet<>();
-        for (double ahead = 0.5; ahead <= 5.0; ahead += 0.5) {
+        for (double ahead = 0.5; ahead <= 7.0; ahead += 0.5) {
             for (double l = -half; l <= half; l += 0.5) {
                 int x = Mth.floor(getX() + fx * ahead + rx * l);
                 int z = Mth.floor(getZ() + fz * ahead + rz * l);
                 if (!done.add(BlockPos.asLong(x, 0, z))) continue;
-                changed += paveColumn(level, x, z, roadY, Math.abs(l) <= 2.0);
+                changed += paveColumn(level, x, z, roadY, Math.abs(l) <= 2.8);
             }
         }
         // flash-freeze the surroundings: houses, trees, terrain
@@ -302,14 +304,36 @@ public class IceCreamTruckEntity extends Entity {
         if (changed > 0 && PacingEngine.points(level.getServer(), credit) < Tier.FINAL_TARGET) {
             PacingEngine.award(level.getServer(), credit, (long) changed * Config.VAN_POINTS_PER_BLOCK.get() * combo);
         }
+        // aggressive ice cannons: packed-ice blocks fly out left and right at high speed and coat the path
+        if (tickCount % 2 == 0) {
+            for (int side = -1; side <= 1; side += 2) {
+                shootIce(level, fx, fz, rx * side, rz * side);
+            }
+        }
         // effects
-        double bx = getX() - fx * 1.9, bz = getZ() - fz * 1.9;
+        double bx = getX() - fx * 2.7, bz = getZ() - fz * 2.7;
         level.sendParticles(ModParticles.SNOWFLAKE.get(), bx, getY() + 0.4, bz, 6, 1.2, 0.3, 1.2, 0.05);
         level.sendParticles(ModParticles.FROST_MIST.get(), bx, getY() + 0.2, bz, 2, 1.0, 0.1, 1.0, 0.02);
-        level.sendParticles(ModParticles.ICE_SHARD.get(), getX() + fx * 2.2, getY() + 0.8, getZ() + fz * 2.2, 4, 0.8, 0.6, 0.8, 0.25);
+        level.sendParticles(ModParticles.ICE_SHARD.get(), getX() + fx * 3.1, getY() + 1.1, getZ() + fz * 3.1, 4, 1.1, 0.8, 1.1, 0.25);
         if (tickCount % 7 == 0) {
             level.playSound(null, blockPosition(), ModSounds.FREEZE.get(), SoundSource.NEUTRAL, 0.8f, 0.6f + random.nextFloat() * 0.3f);
         }
+    }
+
+    private void shootIce(ServerLevel level, double fx, double fz, double sx, double sz) {
+        double along = (random.nextDouble() - 0.4) * 2.4;
+        double px = getX() + sx * 1.7 + fx * along, pz = getZ() + sz * 1.7 + fz * along;
+        BlockPos spawn = BlockPos.containing(px, getY() + 2.2, pz);
+        if (!level.getBlockState(spawn).isAir()) return;
+        net.minecraft.world.entity.item.FallingBlockEntity fb = net.minecraft.world.entity.item.FallingBlockEntity.fall(level, spawn,
+                Blocks.PACKED_ICE.defaultBlockState());
+        fb.dropItem = false;
+        double out = 0.9 + random.nextDouble() * 0.7;
+        double fwd = speed * 0.8 + (random.nextDouble() - 0.5) * 0.3;
+        fb.setDeltaMovement(sx * out + fx * fwd, 0.35 + random.nextDouble() * 0.35, sz * out + fz * fwd);
+        fb.hurtMarked = true;
+        level.sendParticles(ModParticles.ICE_SHARD.get(), px, getY() + 2.2, pz, 6, 0.2, 0.2, 0.2, 0.3);
+        if (random.nextInt(4) == 0) level.playSound(null, spawn, ModSounds.FAN_WHOOSH.get(), SoundSource.NEUTRAL, 0.5f, 1.7f);
     }
 
     private int paveColumn(ServerLevel level, int x, int z, int roadY, boolean corridor) {
@@ -318,17 +342,17 @@ public class IceCreamTruckEntity extends Entity {
         BlockState rs = level.getBlockState(road);
         if (rs.isAir() || !rs.getFluidState().isEmpty() || FreezeEngine.isPlant(rs)) {
             if (!FreezeEngine.isProtected(level, road, rs) || rs.isAir()) {
-                level.setBlock(road, Blocks.BLUE_ICE.defaultBlockState(), 18);
+                level.setBlock(road, Blocks.PACKED_ICE.defaultBlockState(), 18);
                 changed++;
             }
             BlockPos under = road.below();
             BlockState us = level.getBlockState(under);
             if (us.isAir() || !us.getFluidState().isEmpty()) {
-                level.setBlock(under, Blocks.BLUE_ICE.defaultBlockState(), 18);
+                level.setBlock(under, Blocks.PACKED_ICE.defaultBlockState(), 18);
                 changed++;
             }
         } else {
-            changed += FreezeEngine.freezeTo(level, road, FreezeEngine.BLUE);
+            changed += FreezeEngine.freezeTo(level, road, FreezeEngine.PACKED);
         }
         for (int dy = 1; dy <= 4; dy++) {
             BlockPos p = road.above(dy);
@@ -384,7 +408,7 @@ public class IceCreamTruckEntity extends Entity {
         float yaw = getYRot() * Mth.DEG_TO_RAD;
         float fwd = (float) (dx * -Mth.sin(yaw) + dz * Mth.cos(yaw));
         groundSpeed = fwd;
-        wheelAngle += fwd / 0.425f * Mth.RAD_TO_DEG;
+        wheelAngle += fwd / (0.425f * VAN_SCALE) * Mth.RAD_TO_DEG;
         float dYaw = Mth.wrapDegrees(getYRot() - lastYaw);
         lastYaw = getYRot();
         steer += (Mth.clamp(-dYaw * 6f, -28f, 28f) - steer) * 0.3f;
@@ -393,7 +417,7 @@ public class IceCreamTruckEntity extends Entity {
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> com.iceage.yantra.client.ClientHooks.ensureJingle(this));
         }
         if (Math.abs(fwd) > 0.08f && random.nextInt(2) == 0) {
-            double bx = getX() + Mth.sin(yaw) * 1.9, bz = getZ() - Mth.cos(yaw) * 1.9;
+            double bx = getX() + Mth.sin(yaw) * 2.7, bz = getZ() - Mth.cos(yaw) * 2.7;
             level().addParticle(ModParticles.FROST_MIST.get(), bx + (random.nextDouble() - 0.5) * 2, getY() + 0.15, bz + (random.nextDouble() - 0.5) * 2, 0, 0.01, 0);
         }
     }
@@ -408,7 +432,7 @@ public class IceCreamTruckEntity extends Entity {
 
     @Override
     public AABB getBoundingBoxForCulling() {
-        return getBoundingBox().inflate(1.8, 1.8, 1.8);
+        return getBoundingBox().inflate(2.6, 2.6, 2.6);
     }
 
     @Override
