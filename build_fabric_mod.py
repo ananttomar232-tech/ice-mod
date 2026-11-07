@@ -104,10 +104,19 @@ def generate(out, item_display):
     for name, tex in PARTICLE_TEX.items():
         _json(os.path.join(A, 'models/block/%s.json' % name), {'textures': {'particle': '%s:block/%s' % (MODID, tex)}})
         _json(os.path.join(A, 'blockstates/%s.json' % name), {'multipart': [{'apply': {'model': '%s:block/%s' % (MODID, name)}}]})
-    # items: the full 3D rig is drawn by the built-in item renderer, display transforms come from the Forge item models
-    for item, disp in (('gola_machine', 'gola_machine'), ('farrata_fan', 'farrata_fan'), ('retro_fridge', 'retro_fridge'),
-                       ('ac_unit', 'ac_unit'), ('ice_cream_van', 'ice_cream_van'), ('village_portal', 'ice_portal')):
-        _json(os.path.join(A, 'models/item/%s.json' % item), {'parent': 'builtin/entity', 'gui_light': 'side', 'display': item_display[disp]})
+    # items: the full 3D rig is drawn by the built-in item renderer. Large, prominent display transforms.
+    big = {
+        'gui': {'rotation': [30, 225, 0], 'translation': [0, -0.2, 0], 'scale': [0.95, 0.95, 0.95]},
+        'ground': {'rotation': [0, 0, 0], 'translation': [0, 3, 0], 'scale': [0.5, 0.5, 0.5]},
+        'fixed': {'rotation': [0, 180, 0], 'translation': [0, 0, 0], 'scale': [1.0, 1.0, 1.0]},
+        'head': {'rotation': [0, 180, 0], 'translation': [0, 0, 0], 'scale': [1, 1, 1]},
+        'thirdperson_righthand': {'rotation': [75, 45, 0], 'translation': [0, 2.5, 0], 'scale': [0.7, 0.7, 0.7]},
+        'thirdperson_lefthand': {'rotation': [75, 45, 0], 'translation': [0, 2.5, 0], 'scale': [0.7, 0.7, 0.7]},
+        'firstperson_righthand': {'rotation': [0, 45, 0], 'translation': [1.0, 0.5, 0], 'scale': [0.7, 0.7, 0.7]},
+        'firstperson_lefthand': {'rotation': [0, 225, 0], 'translation': [-1.0, 0.5, 0], 'scale': [0.7, 0.7, 0.7]},
+    }
+    for item in ('gola_machine', 'farrata_fan', 'retro_fridge', 'ac_unit', 'ice_cream_van', 'village_portal'):
+        _json(os.path.join(A, 'models/item/%s.json' % item), {'parent': 'builtin/entity', 'gui_light': 'side', 'display': big})
     _json(os.path.join(A, 'models/item/gotiya_spawn_egg.json'), {'parent': 'minecraft:item/template_spawn_egg'})
     _json(os.path.join(A, 'lang/en_us.json'), LANG)
     for item in YANTRA_BLOCKS:
@@ -689,6 +698,7 @@ public final class FreezeEngine {
                 continue;
             }
             if (isProtected(w, m, s)) return changed;
+            FrozenMemory.get(w).remember(m.toImmutable(), fluid && s.getBlock() instanceof FluidBlock ? Blocks.WATER.getDefaultState() : s);
             w.setBlockState(m, iceFor(w, m), FLAGS);
             return changed + 1;
         }
@@ -702,6 +712,7 @@ public final class FreezeEngine {
         BlockState s = w.getBlockState(road);
         if (s.isAir() || (!s.getFluidState().isEmpty()) || (s.isReplaceable())) {
             if (!isProtected(w, road, s) || s.isAir()) {
+                FrozenMemory.get(w).remember(road, s.getFluidState().isEmpty() ? s : Blocks.WATER.getDefaultState());
                 w.setBlockState(road, Blocks.PACKED_ICE.getDefaultState(), FLAGS);
                 return 1;
             }
@@ -710,20 +721,106 @@ public final class FreezeEngine {
         return freezeColumn(w, x, z, roadY, 0, 1);
     }
 
-    /** Hairdryer: turns packed/blue ice of a column back into (briefly flowing) water, leaving the ground below. */
+    /**
+     * Hairdryer: melts frozen blocks of a column back to what they used to be (grass/dirt ground, water, air). Ice
+     * without a memory (a landed ice projectile) simply disappears, natural ice becomes water. Never digs holes.
+     */
     public static int meltColumn(ServerWorld w, int x, int z, int yRef) {
         if (!w.isChunkLoaded(x >> 4, z >> 4)) return 0;
         BlockPos.Mutable m = new BlockPos.Mutable();
+        FrozenMemory mem = null;
         int changed = 0;
         for (int y = yRef + 2; y >= yRef - 3; y--) {
             m.set(x, y, z);
             BlockState s = w.getBlockState(m);
             if (!isFrozen(s) || ShopBuilder.isInShopZone(m)) continue;
-            BlockState water = Blocks.WATER.getDefaultState().with(FluidBlock.LEVEL, 3);
-            w.setBlockState(m, water, Block.NOTIFY_ALL);
+            if (mem == null) mem = FrozenMemory.get(w);
+            BlockState orig = mem.take(m);
+            BlockState now = orig != null ? orig : (s.isOf(Blocks.ICE) ? Blocks.WATER.getDefaultState() : Blocks.AIR.getDefaultState());
+            w.setBlockState(m, now, FLAGS);
             changed++;
         }
         return changed;
+    }
+}
+'''),
+    'src/main/java/com/iceage/yantra/FrozenMemory.java': ('text', r'''package com.iceage.yantra;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtHelper;
+import net.minecraft.nbt.NbtList;
+import net.minecraft.registry.Registries;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.PersistentState;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Remembers what every frozen block used to be (grass, dirt, water, ...) so that when Gotiya's hairdryer melts it the
+ * ORIGINAL ground comes back instead of a hole. Saved with the world.
+ */
+public class FrozenMemory extends PersistentState {
+    private final Long2ObjectOpenHashMap<BlockState> map = new Long2ObjectOpenHashMap<>();
+
+    public static FrozenMemory get(ServerWorld w) {
+        return w.getPersistentStateManager().getOrCreate(FrozenMemory::fromNbt, FrozenMemory::new, "ice_age_frozen_memory");
+    }
+
+    public void remember(BlockPos pos, BlockState original) {
+        map.putIfAbsent(pos.asLong(), original);
+        markDirty();
+    }
+
+    /** The block that was here before it froze, or null when unknown (e.g. a landed ice projectile). */
+    public BlockState take(BlockPos pos) {
+        BlockState s = map.remove(pos.asLong());
+        if (s != null) markDirty();
+        return s;
+    }
+
+    public static FrozenMemory fromNbt(NbtCompound tag) {
+        FrozenMemory m = new FrozenMemory();
+        NbtList pal = tag.getList("palette", NbtElement.COMPOUND_TYPE);
+        List<BlockState> states = new ArrayList<>();
+        for (int i = 0; i < pal.size(); i++) states.add(NbtHelper.toBlockState(Registries.BLOCK.getReadOnlyWrapper(), pal.getCompound(i)));
+        long[] pos = tag.getLongArray("pos");
+        int[] idx = tag.getIntArray("idx");
+        for (int i = 0; i < pos.length && i < idx.length; i++) {
+            if (idx[i] >= 0 && idx[i] < states.size()) m.map.put(pos[i], states.get(idx[i]));
+        }
+        return m;
+    }
+
+    @Override
+    public NbtCompound writeNbt(NbtCompound tag) {
+        Map<BlockState, Integer> ids = new HashMap<>();
+        NbtList pal = new NbtList();
+        long[] pos = new long[map.size()];
+        int[] idx = new int[map.size()];
+        int i = 0;
+        for (var e : map.long2ObjectEntrySet()) {
+            BlockState s = e.getValue();
+            Integer id = ids.get(s);
+            if (id == null) {
+                id = pal.size();
+                ids.put(s, id);
+                pal.add(NbtHelper.fromBlockState(s));
+            }
+            pos[i] = e.getLongKey();
+            idx[i++] = id;
+        }
+        tag.put("palette", pal);
+        tag.putLongArray("pos", pos);
+        tag.putIntArray("idx", idx);
+        return tag;
     }
 }
 '''),
@@ -790,6 +887,7 @@ public class IceData extends PersistentState {
         public long points;
         public float speed = 1.0f;
         public boolean gotStarter;
+        public int golaBought;
         public boolean hasReturn;
         public double rx, ry, rz;
         public float ryaw;
@@ -799,6 +897,7 @@ public class IceData extends PersistentState {
             t.putLong("points", points);
             t.putFloat("speed", speed);
             t.putBoolean("starter", gotStarter);
+            t.putInt("golaBought", golaBought);
             if (hasReturn) {
                 NbtCompound r = new NbtCompound();
                 r.putDouble("x", rx);
@@ -815,6 +914,7 @@ public class IceData extends PersistentState {
             e.points = t.getLong("points");
             e.speed = t.contains("speed") ? t.getFloat("speed") : 1.0f;
             e.gotStarter = t.getBoolean("starter");
+            e.golaBought = t.getInt("golaBought");
             if (t.contains(RETURN_POS, NbtElement.COMPOUND_TYPE)) {
                 NbtCompound r = t.getCompound(RETURN_POS);
                 e.hasReturn = true;
@@ -905,9 +1005,24 @@ public final class IcePoints {
         return after - before;
     }
 
+    /** Awards exactly this many blocks (used by Yantra cycles, so each cycle yields the exact price of the next tier). */
+    public static long awardExact(MinecraftServer server, UUID id, long amount) {
+        if (server == null || id == null || amount <= 0) return 0;
+        IceData data = IceData.get(server);
+        IceData.Entry e = data.entry(id);
+        long before = e.points;
+        if (before >= Tier.FINAL_TARGET) return 0;
+        long after = Math.min(Tier.FINAL_TARGET, before + amount);
+        e.points = after;
+        data.markDirty();
+        PENDING.merge(id, after - before, Long::sum);
+        return after - before;
+    }
+
     public static void set(MinecraftServer server, UUID id, long value) {
         IceData data = IceData.get(server);
         data.entry(id).points = Math.max(0L, Math.min(Tier.FINAL_TARGET, value));
+        if (value == 0L) data.entry(id).golaBought = 0;
         data.markDirty();
         PENDING.merge(id, 0L, Long::sum);
     }
@@ -1228,17 +1343,17 @@ import net.minecraft.util.math.Vec3d;
  * no chunk-loading lag). Packed ice, blue ice, glowstone lighting and glass display pedestals.
  */
 public final class ShopBuilder {
-    public static final int VERSION = 3;
+    public static final int VERSION = 4;
     public static final int CX = 10000, CZ = 10000;
-    public static final int FLOOR = 120, TOP = 127;
-    public static final int X0 = CX - 7, X1 = CX + 7, Z0 = CZ - 7, Z1 = CZ + 7;
+    public static final int FLOOR = 120, TOP = 133;
+    public static final int X0 = CX - 15, X1 = CX + 15, Z0 = CZ - 15, Z1 = CZ + 15;
     /** Where players arrive: standing on the floor (top of the floor blocks = Y 121.0). */
     public static final Vec3d ARRIVAL = new Vec3d(10000.5, 121.0, 10000.5);
     /** Showcase blocks (tier = index + 1). Their glass pedestal stands one block below. */
     public static final BlockPos[] SHOWCASES = {
-            new BlockPos(CX - 4, FLOOR + 1, CZ - 3), new BlockPos(CX + 4, FLOOR + 1, CZ - 3),
-            new BlockPos(CX - 4, FLOOR + 1, CZ + 3), new BlockPos(CX + 4, FLOOR + 1, CZ + 3),
-            new BlockPos(CX, FLOOR + 1, CZ + 4)
+            new BlockPos(CX - 10, FLOOR + 1, CZ - 5), new BlockPos(CX + 10, FLOOR + 1, CZ - 5),
+            new BlockPos(CX - 10, FLOOR + 1, CZ + 5), new BlockPos(CX + 10, FLOOR + 1, CZ + 5),
+            new BlockPos(CX, FLOOR + 1, CZ + 10)
     };
     public static final int FLAGS = Block.NOTIFY_LISTENERS | Block.FORCE_STATE;
 
@@ -1323,13 +1438,15 @@ public final class ShopBuilder {
                 }
             }
         }
-        // glowstone lighting: ceiling grid and wall lamps
-        for (int i = 3; i <= 11; i += 4) {
-            for (int j = 3; j <= 11; j += 4) set(w, X0 + i, TOP, Z0 + j, glow);
-            set(w, X0 + i, FLOOR + 4, Z0, glow);
-            set(w, X0 + i, FLOOR + 4, Z1, glow);
-            set(w, X0, FLOOR + 4, Z0 + i, glow);
-            set(w, X1, FLOOR + 4, Z0 + i, glow);
+        // glowstone lighting: ceiling grid and two rows of wall lamps
+        for (int i = 3; i < X1 - X0 - 2; i += 4) {
+            for (int j = 3; j < Z1 - Z0 - 2; j += 4) set(w, X0 + i, TOP, Z0 + j, glow);
+            for (int y : new int[]{FLOOR + 4, FLOOR + 9}) {
+                set(w, X0 + i, y, Z0, glow);
+                set(w, X0 + i, y, Z1, glow);
+                set(w, X0, y, Z0 + i, glow);
+                set(w, X1, y, Z0 + i, glow);
+            }
         }
         // glass display pedestals: a 3 x 3 glass plate in the floor, lit from below by glowstone, carrying the showcase
         for (int i = 0; i < SHOWCASES.length; i++) {
@@ -1480,24 +1597,27 @@ public final class ShopPortals {
 
 /** The five tiers of the shop. Price = frozen blocks needed to unlock the item at the showcase. */
 public enum Tier {
-    GOLA(1, "gola_machine", 0L, "Desi Baraf Gola Machine", 0x7FE6FF),
-    FAN(2, "farrata_fan", 25L, "Farrata Table Fan", 0x8FD8FF),
-    FRIDGE(3, "retro_fridge", 150L, "Retro Single-Door Fridge", 0xA8F0D8),
-    AC(4, "ac_unit", 1000L, "Split AC Unit", 0xC0E0FF),
-    VAN(5, "ice_cream_van", 50000L, "Musical Ice Cream Van", 0xFFB0E0);
+    GOLA(1, "gola_machine", 0L, 150L, "Desi Baraf Gola Machine", 0x7FE6FF),
+    FAN(2, "farrata_fan", 150L, 1_000L, "Farrata Table Fan", 0x8FD8FF),
+    FRIDGE(3, "retro_fridge", 1_000L, 50_000L, "Retro Single-Door Fridge", 0xA8F0D8),
+    AC(4, "ac_unit", 50_000L, 10_000_000L, "Split AC Unit", 0xC0E0FF),
+    VAN(5, "ice_cream_van", 10_000_000L, 0L, "Musical Ice Cream Van", 0xFFB0E0);
 
     public static final long FINAL_TARGET = 10_000_000L;
 
     public final int number;
     public final String id;
     public final long price;
+    /** Blocks one complete activation cycle yields: exactly the price of the next tier. */
+    public final long cycleYield;
     public final String displayName;
     public final int color;
 
-    Tier(int number, String id, long price, String displayName, int color) {
+    Tier(int number, String id, long price, long cycleYield, String displayName, int color) {
         this.number = number;
         this.id = id;
         this.price = price;
+        this.cycleYield = cycleYield;
         this.displayName = displayName;
         this.color = color;
     }
@@ -1535,31 +1655,8 @@ public final class YantraActions {
     private YantraActions() {
     }
 
-    public static void activate(ServerWorld world, BlockPos pos, Direction facing, ServerPlayerEntity player, Tier tier) {
-        long now = world.getTime();
-        Long last = COOLDOWN.get(pos.asLong());
-        if (last != null && now - last < 25) return;
-        COOLDOWN.put(pos.asLong(), now);
-        if (COOLDOWN.size() > 512) COOLDOWN.clear();
-
-        world.addSyncedBlockEvent(pos, world.getBlockState(pos).getBlock(), com.iceage.yantra.block.YantraBlockEntity.EVENT_ACTIVATE, 0);
-        int projectiles = 20 + world.random.nextInt(11);
-        launch(world, pos, facing, tier, projectiles);
-        int frozen = freeze(world, pos, facing, tier);
-        effects(world, pos, facing, tier);
-
-        long mult = switch (tier) {
-            case GOLA -> 1;
-            case FAN -> 3;
-            case FRIDGE -> 8;
-            case AC -> 25;
-            case VAN -> 1;
-        };
-        IcePoints.award(world.getServer(), player.getUuid(), frozen + projectiles * mult);
-    }
-
     /** Fires the flying ice blocks (real falling-block entities) that land and become packed/blue ice. */
-    private static void launch(ServerWorld world, BlockPos pos, Direction facing, Tier tier, int count) {
+    public static void launch(ServerWorld world, BlockPos pos, Direction facing, Tier tier, int count) {
         BlockPos spawn = pos.up();
         if (!world.getBlockState(spawn).isAir()) spawn = pos.up(2);
         if (!world.getBlockState(spawn).isAir()) return;
@@ -1637,7 +1734,7 @@ public final class YantraActions {
         return changed;
     }
 
-    private static void effects(ServerWorld world, BlockPos pos, Direction facing, Tier tier) {
+    public static void effects(ServerWorld world, BlockPos pos, Direction facing, Tier tier) {
         Vec3d c = Vec3d.ofCenter(pos).add(0, 0.6, 0);
         world.spawnParticles(ModParticles.SNOWFLAKE, c.x, c.y, c.z, 60, 1.2, 0.8, 1.2, 0.15);
         world.spawnParticles(ModParticles.ICE_SHARD, c.x, c.y, c.z, 40, 0.8, 0.6, 0.8, 0.35);
@@ -1908,6 +2005,16 @@ public class ShowcaseBlock extends BlockWithEntity {
             world.playSound(null, pos, SoundEvents.ENTITY_VILLAGER_NO, SoundCategory.BLOCKS, 0.8f, 1.2f);
             return ActionResult.CONSUME;
         }
+        if (tier == Tier.GOLA) {
+            com.iceage.yantra.IceData data = com.iceage.yantra.IceData.get(world.getServer());
+            com.iceage.yantra.IceData.Entry en = data.entry(player.getUuid());
+            if (en.golaBought >= 2) {
+                world.playSound(null, pos, SoundEvents.ENTITY_VILLAGER_NO, SoundCategory.BLOCKS, 0.8f, 1.2f);
+                return ActionResult.CONSUME;
+            }
+            en.golaBought++;
+            data.markDirty();
+        }
         ItemStack stack = new ItemStack(ModItems.forTier(tier));
         if (!player.getInventory().insertStack(stack)) player.dropItem(stack, false);
         world.playSound(null, pos, com.iceage.yantra.ModSounds.PURCHASE, SoundCategory.BLOCKS, 1.0f, 1.0f);
@@ -1991,13 +2098,22 @@ public class YantraBlock extends BlockWithEntity {
 
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(World world, BlockState state, BlockEntityType<T> type) {
-        if (!world.isClient || type != ModBlocks.YANTRA_BE) return null;
-        return (w, p, s, be) -> YantraBlockEntity.clientTick(w, p, s, (YantraBlockEntity) be);
+        if (type != ModBlocks.YANTRA_BE) return null;
+        if (world.isClient) return (w, p, s, be) -> YantraBlockEntity.clientTick(w, p, s, (YantraBlockEntity) be);
+        return (w, p, s, be) -> YantraBlockEntity.serverTick(w, p, s, (YantraBlockEntity) be);
     }
 
     @Override
     protected void appendProperties(StateManager.Builder<Block, BlockState> builder) {
         builder.add(FACING);
+    }
+
+    /** A machine that has started its cycle is used up: breaking it drops nothing. */
+    @Override
+    public java.util.List<net.minecraft.item.ItemStack> getDroppedStacks(BlockState state, net.minecraft.loot.context.LootContextParameterSet.Builder builder) {
+        BlockEntity be = builder.getOptional(net.minecraft.loot.context.LootContextParameters.BLOCK_ENTITY);
+        if (be instanceof YantraBlockEntity y && y.phase != YantraBlockEntity.IDLE) return java.util.List.of();
+        return super.getDroppedStacks(state, builder);
     }
 
     @Override
@@ -2023,8 +2139,8 @@ public class YantraBlock extends BlockWithEntity {
     @Override
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
         if (world.isClient) return ActionResult.SUCCESS;
-        if (world instanceof ServerWorld sw && player instanceof ServerPlayerEntity sp) {
-            YantraActions.activate(sw, pos, state.get(FACING), sp, tier);
+        if (player instanceof ServerPlayerEntity sp && world.getBlockEntity(pos) instanceof YantraBlockEntity be) {
+            be.tryStart(sp);   // one single right-click runs the whole cycle; used-up machines ignore clicks
         }
         return ActionResult.CONSUME;
     }
@@ -2032,32 +2148,195 @@ public class YantraBlock extends BlockWithEntity {
 '''),
     'src/main/java/com/iceage/yantra/block/YantraBlockEntity.java': ('text', r'''package com.iceage.yantra.block;
 
+import com.iceage.yantra.FreezeEngine;
+import com.iceage.yantra.IcePoints;
 import com.iceage.yantra.ModBlocks;
+import com.iceage.yantra.ModParticles;
+import com.iceage.yantra.ModSounds;
+import com.iceage.yantra.Tier;
+import com.iceage.yantra.YantraActions;
+import com.iceage.yantra.entity.GotiyaEntity;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.world.World;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.network.listener.ClientPlayPacketListener;
+import net.minecraft.network.packet.Packet;
+import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket;
+import net.minecraft.particle.ParticleTypes;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.World;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.UUID;
 
 /**
- * Holds only the client animation state of a Yantra (wheel, blades, rotor, fridge door). The server just sends a
- * synced block event whenever somebody uses the machine.
+ * A Yantra runs exactly ONE cycle: right-click once, it freezes continuously for the whole cycle, pays out exactly the
+ * price of the next tier, and is then used up (break it and place a fresh one). Also holds the client animation state.
  */
 public class YantraBlockEntity extends BlockEntity {
-    public static final int EVENT_ACTIVATE = 1;
-    public static final int RUN_TICKS = 90;
+    public static final int IDLE = 0, RUNNING = 1, USED = 2;
+    public static final int EVENT_START = 1, EVENT_END = 2;
+    public static final int HANDLE_FLIGHT_TICKS = 12;
 
+    // ---- persistent state
+    public int phase;
+    public int cycle;
+    public long awarded;
+    public boolean handleGone;
+    @Nullable
+    private UUID owner;
+    @Nullable
+    private UUID gotiya;
+
+    // ---- client animation
     public int age;
-    public int active;
+    public int playerId = -1;
+    public int flightTicks;
     public float angle, prevAngle, speed, door, prevDoor;
 
     public YantraBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlocks.YANTRA_BE, pos, state);
     }
 
+    public Tier tier() {
+        return ((YantraBlock) getCachedState().getBlock()).tier;
+    }
+
+    public Direction facing() {
+        return getCachedState().get(YantraBlock.FACING);
+    }
+
+    public static int cycleTicks(Tier t) {
+        return switch (t) {
+            case GOLA -> 120;
+            case FAN -> 160;
+            case FRIDGE -> 200;
+            case AC -> 260;
+            case VAN -> 1;
+        };
+    }
+
+    private static int radius(Tier t) {
+        return switch (t) {
+            case GOLA -> 6;
+            case FAN -> 14;
+            case FRIDGE -> 9;
+            case AC -> 13;
+            case VAN -> 1;
+        };
+    }
+
+    // ---------------------------------------------------------------------------------------------- server
+    /** Called by the block on right-click. Returns false when the machine is already running or used up. */
+    public boolean tryStart(ServerPlayerEntity player) {
+        if (phase != IDLE || !(world instanceof ServerWorld sw)) return false;
+        phase = RUNNING;
+        cycle = 0;
+        awarded = 0;
+        owner = player.getUuid();
+        Tier t = tier();
+        if (t == Tier.GOLA) handleGone = true;
+        markDirty();
+        sw.addSyncedBlockEvent(pos, getCachedState().getBlock(), EVENT_START, player.getId());
+        sw.playSound(null, pos, t == Tier.GOLA ? ModSounds.CRANK : t == Tier.FAN ? ModSounds.FAN_WHOOSH : t == Tier.FRIDGE ? ModSounds.FRIDGE_OPEN : ModSounds.AC_BLIZZARD,
+                SoundCategory.BLOCKS, 1.3f, 1.0f);
+        GotiyaEntity g = GotiyaEntity.spawnGag(sw, t, pos, facing(), player);
+        gotiya = g == null ? null : g.getUuid();
+        return true;
+    }
+
+    public static void serverTick(World world, BlockPos pos, BlockState state, YantraBlockEntity be) {
+        if (be.phase != RUNNING || !(world instanceof ServerWorld sw)) return;
+        Tier t = be.tier();
+        int total = cycleTicks(t);
+        int i = be.cycle++;
+        ServerPlayerEntity owner = be.owner == null ? null : sw.getServer().getPlayerManager().getPlayer(be.owner);
+
+        // exact payout: after the last tick exactly t.cycleYield has been paid, no more, no less
+        long should = t.cycleYield * (i + 1) / total;
+        long pay = should - be.awarded;
+        if (pay > 0 && be.owner != null) IcePoints.awardExact(sw.getServer(), be.owner, pay);
+        be.awarded = should;
+
+        // continuous freezing: the frozen ring/cone grows with the cycle
+        int R = radius(t);
+        double r0 = (double) R * i / total, r1 = (double) R * (i + 1) / total;
+        freezeRing(sw, pos, be.facing(), t, R, r0, r1);
+
+        // flying ice blocks: 20-30 over the first half second
+        if (i == 0) be.projectilesLeft = 20 + sw.random.nextInt(11);
+        if (i < 10 && be.projectilesLeft > 0) {
+            int n = Math.max(1, be.projectilesLeft / (10 - i));
+            YantraActions.launch(sw, pos, be.facing(), t, n);
+            be.projectilesLeft -= n;
+        }
+        if (i % 12 == 0) YantraActions.effects(sw, pos, be.facing(), t);
+
+        // Gola gag: the snapped handle hits the player's face
+        if (t == Tier.GOLA && i == HANDLE_FLIGHT_TICKS && owner != null) {
+            sw.playSound(null, owner.getBlockPos(), ModSounds.HANDLE_POP, SoundCategory.PLAYERS, 1.6f, 1.0f);
+            sw.playSound(null, owner.getBlockPos(), ModSounds.SQUEAK, SoundCategory.PLAYERS, 1.0f, 1.5f);
+            Vec3d eye = owner.getEyePos();
+            sw.spawnParticles(ParticleTypes.CRIT, eye.x, eye.y, eye.z, 16, 0.2, 0.2, 0.2, 0.4);
+            sw.spawnParticles(ParticleTypes.POOF, eye.x, eye.y, eye.z, 8, 0.2, 0.2, 0.2, 0.03);
+            Vec3d away = owner.getPos().subtract(Vec3d.ofCenter(pos)).multiply(1, 0, 1);
+            if (away.lengthSquared() > 1e-4) away = away.normalize();
+            owner.addVelocity(away.x * 0.35, 0.25, away.z * 0.35);
+            owner.velocityModified = true;
+        }
+
+        if (be.cycle >= total) be.finish(sw);
+    }
+
+    private int projectilesLeft;
+
+    private static void freezeRing(ServerWorld w, BlockPos pos, Direction f, Tier t, int R, double r0, double r1) {
+        Direction side = f.rotateYClockwise();
+        int y = pos.getY();
+        for (int dx = -R; dx <= R; dx++) {
+            for (int dz = -R; dz <= R; dz++) {
+                double d;
+                if (t == Tier.FAN) {
+                    double fw = dx * f.getOffsetX() + dz * f.getOffsetZ();
+                    double lat = dx * side.getOffsetX() + dz * side.getOffsetZ();
+                    if (fw < 0 || Math.abs(lat) > 0.55 * fw + 1.0) continue;
+                    d = fw;
+                } else {
+                    d = Math.sqrt(dx * dx + dz * dz);
+                }
+                if (d <= r0 || d > r1) continue;
+                FreezeEngine.freezeColumn(w, pos.getX() + dx, pos.getZ() + dz, y, 4, 6);
+            }
+        }
+    }
+
+    private void finish(ServerWorld sw) {
+        phase = USED;
+        markDirty();
+        sw.addSyncedBlockEvent(pos, getCachedState().getBlock(), EVENT_END, 0);
+        sw.playSound(null, pos, ModSounds.SPUTTER, SoundCategory.BLOCKS, 1.2f, 1.0f);
+        sw.playSound(null, pos, ModSounds.SQUEAK, SoundCategory.BLOCKS, 1.0f, 1.3f);
+        sw.spawnParticles(ParticleTypes.LARGE_SMOKE, pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5, 14, 0.25, 0.2, 0.25, 0.02);
+        if (gotiya != null && sw.getEntity(gotiya) instanceof GotiyaEntity g && g.isAlive() && g.state() != GotiyaEntity.DRYER) g.flee(null);
+    }
+
+    // ---------------------------------------------------------------------------------------------- client
     @Override
     public boolean onSyncedBlockEvent(int type, int data) {
-        if (type == EVENT_ACTIVATE) {
-            active = RUN_TICKS;
+        if (type == EVENT_START) {
+            phase = RUNNING;
+            flightTicks = 0;
+            playerId = data;
+            if (tier() == Tier.GOLA) handleGone = true;
+            return true;
+        }
+        if (type == EVENT_END) {
+            phase = USED;
             return true;
         }
         return super.onSyncedBlockEvent(type, data);
@@ -2067,14 +2346,48 @@ public class YantraBlockEntity extends BlockEntity {
         be.age++;
         be.prevAngle = be.angle;
         be.prevDoor = be.door;
-        float target = be.active > 0 ? 1f : 0f;
-        if (be.active > 0) be.active--;
-        be.speed += (target * 52f - be.speed) * (target > 0 ? 0.12f : 0.04f);
+        if (be.phase == RUNNING && be.flightTicks < 1000) be.flightTicks++;
+        boolean run = be.phase == RUNNING;
+        be.speed += ((run ? 52f : 0f) - be.speed) * (run ? 0.12f : 0.05f);
         if (be.speed < 0.05f) be.speed = 0;
         be.angle += be.speed;
-        // fridge: door swings open while running, then closes
-        float doorTarget = be.active > 6 ? 108f : 0f;
+        // fridge: the door opens on the single click and stays open for the whole cycle, then closes
+        float doorTarget = run ? 108f : 0f;
         be.door += (doorTarget - be.door) * (doorTarget > be.door ? 0.16f : 0.3f);
+    }
+
+    // ---------------------------------------------------------------------------------------------- nbt
+    @Override
+    protected void writeNbt(NbtCompound nbt) {
+        super.writeNbt(nbt);
+        nbt.putInt("phase", phase);
+        nbt.putInt("cycle", cycle);
+        nbt.putLong("awarded", awarded);
+        nbt.putBoolean("handleGone", handleGone);
+        if (owner != null) nbt.putUuid("owner", owner);
+        if (gotiya != null) nbt.putUuid("gotiya", gotiya);
+    }
+
+    @Override
+    public void readNbt(NbtCompound nbt) {
+        super.readNbt(nbt);
+        phase = nbt.getInt("phase");
+        cycle = nbt.getInt("cycle");
+        awarded = nbt.getLong("awarded");
+        handleGone = nbt.getBoolean("handleGone");
+        owner = nbt.containsUuid("owner") ? nbt.getUuid("owner") : null;
+        gotiya = nbt.containsUuid("gotiya") ? nbt.getUuid("gotiya") : null;
+        if (phase == RUNNING && world == null) flightTicks = 1000;
+    }
+
+    @Override
+    public NbtCompound toInitialChunkDataNbt() {
+        return createNbt();
+    }
+
+    @Override
+    public Packet<ClientPlayPacketListener> toUpdatePacket() {
+        return BlockEntityUpdateS2CPacket.create(this);
     }
 }
 '''),
@@ -2320,6 +2633,7 @@ public class IceAgeYantraClient implements ClientModInitializer {
         EntityRendererRegistry.register(ModEntities.ICE_VAN, VanRenderer::new);
         EntityRendererRegistry.register(ModEntities.GOTIYA, GotiyaRenderer::new);
         ItemRigs.register();
+        VanCamera.register();
         ParticleFactoryRegistry pf = ParticleFactoryRegistry.getInstance();
         pf.register(ModParticles.FROST_SWIRL, s -> new FrostParticles.Provider(s, FrostParticles.Kind.SWIRL));
         pf.register(ModParticles.ICE_SHARD, s -> new FrostParticles.Provider(s, FrostParticles.Kind.SHARD));
@@ -2474,6 +2788,49 @@ public final class IceHud {
         }
         g.disableScissor();
         return w;
+    }
+}
+'''),
+    'src/main/java/com/iceage/yantra/client/VanCamera.java': ('text', r'''package com.iceage.yantra.client;
+
+import com.iceage.yantra.entity.IceVanEntity;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.render.Camera;
+
+import java.lang.reflect.Method;
+
+/**
+ * Third-person camera for the (1.4x) van, without any mixin: pushes the camera further back and up so the van and its
+ * driver stay in frame instead of the camera sitting right behind the cargo box.
+ */
+public final class VanCamera {
+    private static Method moveBy;
+    private static boolean failed;
+
+    private VanCamera() {
+    }
+
+    public static void register() {
+        WorldRenderEvents.START.register(ctx -> {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (failed || mc.player == null || mc.options.getPerspective().isFirstPerson()) return;
+            if (!(mc.player.getVehicle() instanceof IceVanEntity)) return;
+            Camera cam = ctx.camera();
+            if (!cam.isThirdPerson()) return;
+            try {
+                if (moveBy == null) {
+                    // Camera.moveBy(double, double, double) = intermediary method_19324 (setPos has the same signature!)
+                    String name = net.fabricmc.loader.api.FabricLoader.getInstance().getMappingResolver()
+                            .mapMethodName("intermediary", "net.minecraft.class_4184", "method_19324", "(DDD)V");
+                    moveBy = Camera.class.getDeclaredMethod(name, double.class, double.class, double.class);
+                    moveBy.setAccessible(true);
+                }
+                moveBy.invoke(cam, -4.5, 1.6, 0.0);
+            } catch (Throwable t) {
+                failed = true;
+            }
+        });
     }
 }
 '''),
@@ -2817,7 +3174,13 @@ public class GotiyaRenderer extends MobEntityRenderer<GotiyaEntity, GotiyaRender
 
     @Override
     protected void scale(GotiyaEntity e, MatrixStack ps, float amount) {
-        ps.scale(0.9375f, 0.9375f, 0.9375f);
+        float s = 0.9375f;
+        if (e.isSitting()) {
+            float t = e.age + amount;
+            ps.translate(MathHelper.sin(t * 2.3f) * 0.012f, -0.4f, MathHelper.cos(t * 2.9f) * 0.012f);   // shivering
+            s *= 0.82f;
+        }
+        ps.scale(s, s, s);
     }
 
     @Override
@@ -2848,12 +3211,14 @@ public class GotiyaRenderer extends MobEntityRenderer<GotiyaEntity, GotiyaRender
 
     /** Villager model with the arms posed for the struggle with the hairdryer / fleeing. */
     public static class Model extends VillagerResemblingModel<GotiyaEntity> {
-        private final ModelPart arms, head;
+        private final ModelPart arms, head, rightLeg, leftLeg;
 
         public Model(ModelPart root) {
             super(root);
             arms = root.getChild("arms");
             head = root.getChild("head");
+            rightLeg = root.getChild("right_leg");
+            leftLeg = root.getChild("left_leg");
         }
 
         @Override
@@ -2861,7 +3226,16 @@ public class GotiyaRenderer extends MobEntityRenderer<GotiyaEntity, GotiyaRender
             super.setAngles(e, limbAngle, limbDistance, age, headYaw, headPitch);
             arms.pitch = -0.75f;
             arms.roll = 0f;
-            if (e.hasHairdryer()) {
+            rightLeg.roll = 0f;
+            leftLeg.roll = 0f;
+            if (e.isSitting()) {
+                rightLeg.pitch = -1.4137167f;
+                rightLeg.yaw = 0.31415927f;
+                leftLeg.pitch = -1.4137167f;
+                leftLeg.yaw = -0.31415927f;
+                head.roll = MathHelper.sin(age * 1.9f) * 0.045f;
+                arms.pitch = -0.95f + MathHelper.sin(age * 2.2f) * 0.03f;
+            } else if (e.hasHairdryer()) {
                 arms.pitch = -1.9f + MathHelper.sin(age * 0.4f) * 0.12f;
                 head.pitch = -0.35f;
                 head.roll = MathHelper.sin(age * 0.3f) * 0.12f;
@@ -2909,17 +3283,21 @@ public final class ItemRigs {
             YantraRig.fan(ps, buf, light, overlay, time * 8f, 0, 0, time);
         } else if (item == ModItems.RETRO_FRIDGE) {
             ps.translate(0.5, 0, 0.5);
-            ps.scale(0.5f, 0.5f, 0.5f);
+            ps.scale(0.62f, 0.62f, 0.62f);
             ps.translate(-0.5, 0, -0.5);
             YantraRig.fridge(ps, buf, light, overlay, 0, 0);
         } else if (item == ModItems.AC_UNIT) {
             YantraRig.ac(ps, buf, light, overlay, time * 6f);
         } else if (item == ModItems.ICE_CREAM_VAN) {
             ps.translate(0.5, 0.05, 0.5);
-            ps.scale(0.2f, 0.2f, 0.2f);
+            ps.scale(0.23f, 0.23f, 0.23f);
             YantraRig.van(ps, buf, light, overlay, 0, 0, time, false);
         } else if (item == ModItems.VILLAGE_PORTAL) {
+            ps.translate(0.5, 0.0, 0.5);
+            ps.scale(0.36f, 0.36f, 0.36f);
+            ps.translate(-0.5, 0.0, -0.5);
             ObjParts.PORTAL_FRAME.render(ps, buf, light, overlay);
+            PortalRenderer.renderVortex(ps, buf, time, 0f);   // the swirling blue centre, not just an empty border
         }
         ps.pop();
     }
@@ -2964,7 +3342,11 @@ public class PortalRenderer implements BlockEntityRenderer<PortalBlockEntity> {
         ps.translate(-0.5, 0, -0.5);
         ObjParts.PORTAL_FRAME.render(ps, buf, light, overlay);
         ps.pop();
-        // vortex
+        renderVortex(ps, buf, t, yaw);
+    }
+
+    /** The swirling blue magical centre of the arch (also used by the portal item). */
+    public static void renderVortex(MatrixStack ps, VertexConsumerProvider buf, float t, float yaw) {
         ps.push();
         ps.translate(0.5, 1.3, 0.5);
         ps.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
@@ -3108,7 +3490,7 @@ public class ShowcaseRenderer implements BlockEntityRenderer<ShowcaseBlockEntity
         String status;
         int statusColor;
         if (affordable) {
-            status = "RIGHT-CLICK TO TAKE";
+            status = tier == Tier.GOLA ? "RIGHT-CLICK TO TAKE (MAX 2)" : "RIGHT-CLICK TO TAKE";
             statusColor = 0xFFE27A;
         } else {
             status = "LOCKED - " + String.format(Locale.US, "%,d", tier.price - ClientIceState.points) + " MORE";
@@ -3208,7 +3590,11 @@ public class YantraRenderer implements BlockEntityRenderer<YantraBlockEntity> {
         float run = Math.min(1f, be.speed / 40f);
         float time = be.age + pt;
         switch (tier) {
-            case GOLA -> YantraRig.gola(ps, buf, light, overlay, angle, 0, 0);
+            case GOLA -> {
+                YantraRig.gola(ps, buf, light, overlay, angle, be.handleGone ? 3 : 0, 0);
+                float ft = (be.flightTicks - 1 + pt) / YantraBlockEntity.HANDLE_FLIGHT_TICKS;
+                if (be.handleGone && be.flightTicks < 100 && ft >= 0 && ft < 1f) flyingHandle(be, ps, buf, light, overlay, ft, pt);
+            }
             case FAN -> YantraRig.fan(ps, buf, light, overlay, angle, 22f * run * MathHelper.sin(time * 0.05f), run, time);
             case FRIDGE -> {
                 float door = Math.max(0f, MathHelper.lerp(pt, be.prevDoor, be.door));
@@ -3218,6 +3604,33 @@ public class YantraRenderer implements BlockEntityRenderer<YantraBlockEntity> {
             default -> {
             }
         }
+        ps.pop();
+    }
+
+    /** The snapped-off handle flies straight into the face of whoever pressed the button. */
+    private static void flyingHandle(YantraBlockEntity be, MatrixStack ps, VertexConsumerProvider buf, int light, int overlay, float t, float pt) {
+        net.minecraft.entity.Entity p = be.getWorld() == null ? null : be.getWorld().getEntityById(be.playerId);
+        double hx = com.iceage.yantra.RigData.GOLA_HANDLE_TOP_X, hy = com.iceage.yantra.RigData.GOLA_HANDLE_TOP_Y - 0.26,
+                hz = com.iceage.yantra.RigData.GOLA_HANDLE_TOP_Z;
+        double tx = hx, ty = hy + 2, tz = hz + 2;
+        if (p != null) {
+            net.minecraft.util.math.Vec3d eye = p.getCameraPosVec(pt);
+            double wx = eye.x - be.getPos().getX(), wy = eye.y - be.getPos().getY() - 0.1, wz = eye.z - be.getPos().getZ();
+            // undo the block's facing rotation (the rig is drawn in a rotated frame)
+            double th = Math.toRadians(-(180 - be.facing().asRotation()));
+            double rx = wx - 0.5, rz = wz - 0.5;
+            tx = rx * Math.cos(th) + rz * Math.sin(th) + 0.5;
+            tz = -rx * Math.sin(th) + rz * Math.cos(th) + 0.5;
+            ty = wy;
+        }
+        float e = t * t * (3 - 2 * t);
+        double px = MathHelper.lerp(e, hx, tx), py = MathHelper.lerp(e, hy, ty) + 0.8 * 4 * t * (1 - t), pz = MathHelper.lerp(e, hz, tz);
+        ps.push();
+        ps.translate(px, py, pz);
+        ps.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(t * 540f));
+        ps.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Z.rotationDegrees(-90f + t * 720f));
+        ps.translate(-hx, -hy, -hz);
+        com.iceage.yantra.client.obj.ObjParts.GOLA_HANDLE.render(ps, buf, light, overlay);
         ps.pop();
     }
 
@@ -3274,7 +3687,7 @@ public final class YantraRig {
         ObjParts.GOLA_WHEEL.render(ps, buf, light, overlay);
         if (handleState == 0) ObjParts.GOLA_HANDLE.render(ps, buf, light, overlay);
         ps.pop();
-        if (handleState != 0) {
+        if (handleState == 1 || handleState == 2) {
             double hx = RigData.GOLA_HANDLE_TOP_X, hy = RigData.GOLA_HANDLE_TOP_Y - 0.26, hz = RigData.GOLA_HANDLE_TOP_Z;
             double ex = hx + 0.95, ey = 0.035, ez = hz - 0.25;
             float t = handleState == 1 ? MathHelper.clamp(handleT, 0f, 1f) : 1f;
@@ -3433,6 +3846,9 @@ public final class YantraRig {
 
 import com.iceage.yantra.FreezeEngine;
 import com.iceage.yantra.ModEntities;
+import com.iceage.yantra.ModParticles;
+import com.iceage.yantra.ModSounds;
+import com.iceage.yantra.Tier;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.SpawnReason;
@@ -3451,6 +3867,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.registry.tag.DamageTypeTags;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvent;
@@ -3458,6 +3875,7 @@ import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.village.VillagerData;
@@ -3471,19 +3889,30 @@ import org.jetbrains.annotations.Nullable;
 import java.util.EnumSet;
 
 /**
- * Gotiya: a custom villager NPC with a bold aqua name tag. During the Ice Cream Van climax he stands in the van's
- * path holding an oversized industrial hairdryer and blasts flames and hot air at the ice, melting the frozen road
- * back into water. Hit him and he panics (walk speed 0.5).
+ * Gotiya, the hot-headed villager (bold aqua name, panic speed 0.5). Only ONE exists at any time.
+ * Tier 1: shouts at the Gola. Tier 2: sits shivering in front of the fan. Tier 3: sits shivering inside the open
+ * fridge. Van climax: chases behind the van with a giant hairdryer and melts every frozen block. Hit him and the
+ * hairdryer vanishes and he flees.
  */
 public class GotiyaEntity extends PathAwareEntity implements VillagerDataContainer {
-    public static final int IDLE = 0, DRYER = 1, FLEEING = 2;
-    /** Normal panic walk speed. */
+    public static final int IDLE = 0, DRYER = 1, FLEEING = 2, WALK = 3, SIT = 4, FRIDGE = 5;
     public static final float PANIC_SPEED = 0.5F;
+    public static final String GOLA_LINE = "Main tujhe world freeze nahi karne dunga!";
     private static final TrackedData<Integer> STATE = DataTracker.registerData(GotiyaEntity.class, TrackedDataHandlerRegistry.INTEGER);
     private static final TrackedData<VillagerData> VDATA = DataTracker.registerData(GotiyaEntity.class, TrackedDataHandlerRegistry.VILLAGER_DATA);
+    private static final String[] FAN_LINES = {"Brrr... yeh Farrata Fan toh barf ki hawa de raha hai!", "Mere daant baj rahe hain... band karo isse!",
+            "Itni thand! Main jam jaunga!", "Kaun si machine hai yeh... brrr!"};
+    private static final String[] FRIDGE_LINES = {"Brrr... fridge ke andar bahut thand hai!", "Mujhe bahar nikalo... par yahan mazaa bhi aa raha hai!",
+            "Thand se meri naak jam gayi!", "Brrr... brrr... brrr!"};
 
     private int stateTicks;
     private boolean climax;
+    private boolean checkedUnique;
+    private int gagTier;
+    @Nullable
+    private BlockPos anchor;
+    @Nullable
+    private Vec3d spot;
     @Nullable
     private Vec3d threat;
 
@@ -3494,7 +3923,6 @@ public class GotiyaEntity extends PathAwareEntity implements VillagerDataContain
     }
 
     private void applyName() {
-        // §b§lGotiya
         setCustomName(Text.literal("Gotiya").formatted(Formatting.AQUA, Formatting.BOLD));
         setCustomNameVisible(true);
     }
@@ -3531,6 +3959,11 @@ public class GotiyaEntity extends PathAwareEntity implements VillagerDataContain
         return state() == DRYER;
     }
 
+    public boolean isSitting() {
+        int s = state();
+        return s == SIT || s == FRIDGE;
+    }
+
     private void setState(int s) {
         dataTracker.set(STATE, s);
         stateTicks = 0;
@@ -3543,40 +3976,110 @@ public class GotiyaEntity extends PathAwareEntity implements VillagerDataContain
         goalSelector.add(8, new LookAtEntityGoal(this, PlayerEntity.class, 8.0f));
     }
 
-    /** Spawns Gotiya with his hairdryer at the given position (snapped to the ground). */
+    // ---------------------------------------------------------------------------------------- immunity
+    /** Ice around his head must never choke or glitch him. */
+    @Override
+    public boolean isInsideWall() {
+        return false;
+    }
+
+    @Override
+    public boolean isInvulnerableTo(DamageSource source) {
+        return source.isOf(net.minecraft.entity.damage.DamageTypes.IN_WALL) || super.isInvulnerableTo(source);
+    }
+
+    // ---------------------------------------------------------------------------------------- spawning
+    /** Dialogue as a subtitle (action bar) for everyone nearby. */
+    public static void dialogue(ServerWorld level, Vec3d at, String line) {
+        Text msg = Text.literal("Gotiya: ").formatted(Formatting.AQUA, Formatting.BOLD).append(Text.literal(line).formatted(Formatting.WHITE));
+        for (ServerPlayerEntity p : level.getPlayers()) {
+            if (p.getPos().squaredDistanceTo(at) < 48 * 48) p.sendMessage(msg, true);
+        }
+    }
+
+    /** Only one Gotiya exists in the world at any time: every other one is despawned. */
+    public static void removeOthers(net.minecraft.server.MinecraftServer server, GotiyaEntity keep) {
+        for (ServerWorld w : server.getWorlds()) {
+            for (GotiyaEntity g : w.getEntitiesByType(ModEntities.GOTIYA, e -> e != keep)) {
+                w.spawnParticles(ParticleTypes.POOF, g.getX(), g.getY() + 0.8, g.getZ(), 10, 0.3, 0.5, 0.3, 0.02);
+                g.discard();
+            }
+        }
+    }
+
+    private static Vec3d groundNear(ServerWorld w, double x, double z, double fallbackY) {
+        int bx = MathHelper.floor(x), bz = MathHelper.floor(z);
+        if (!w.isChunkLoaded(bx >> 4, bz >> 4)) return new Vec3d(x, fallbackY, z);
+        return new Vec3d(x, w.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, bx, bz), z);
+    }
+
+    private static GotiyaEntity create(ServerWorld w, Vec3d p) {
+        GotiyaEntity g = ModEntities.GOTIYA.create(w);
+        if (g == null) return null;
+        g.refreshPositionAndAngles(p.x, p.y, p.z, w.random.nextFloat() * 360f, 0f);
+        g.initialize(w, w.getLocalDifficulty(g.getBlockPos()), SpawnReason.EVENT, null, null);
+        g.applyName();
+        return g;
+    }
+
+    /** The per-machine gags. Returns null for machines without one (Split AC). */
+    @Nullable
+    public static GotiyaEntity spawnGag(ServerWorld w, Tier tier, BlockPos machine, Direction facing, ServerPlayerEntity by) {
+        if (tier != Tier.GOLA && tier != Tier.FAN && tier != Tier.FRIDGE) return null;
+        double d = 6 + w.random.nextDouble() * 3;
+        double ang = Math.toRadians(facing.asRotation() + (w.random.nextDouble() - 0.5) * 100);
+        Vec3d start = groundNear(w, machine.getX() + 0.5 - Math.sin(ang) * d, machine.getZ() + 0.5 + Math.cos(ang) * d, machine.getY());
+        GotiyaEntity g = create(w, start);
+        if (g == null) return null;
+        g.anchor = machine;
+        g.gagTier = tier.number;
+        double front = tier == Tier.GOLA ? 3.0 : tier == Tier.FAN ? 2.4 : 1.1;
+        Vec3d s = Vec3d.ofBottomCenter(machine).add(facing.getOffsetX() * front, 0, facing.getOffsetZ() * front);
+        g.spot = groundNear(w, s.x, s.z, machine.getY());
+        if (g.spot.y < machine.getY() - 1) g.spot = new Vec3d(s.x, machine.getY(), s.z);
+        g.setState(WALK);
+        w.spawnEntity(g);
+        removeOthers(w.getServer(), g);
+        g.checkedUnique = true;
+        w.spawnParticles(ParticleTypes.POOF, start.x, start.y + 0.5, start.z, 12, 0.3, 0.5, 0.3, 0.02);
+        if (tier == Tier.GOLA) {
+            g.playSound(SoundEvents.ENTITY_VILLAGER_NO, 1.3f, 0.9f);
+            dialogue(w, start, GOLA_LINE);
+        }
+        return g;
+    }
+
+    /** The van climax (and /iceage gotiya): Gotiya with the giant hairdryer. */
     @Nullable
     public static GotiyaEntity spawnClimax(ServerWorld world, Vec3d at, @Nullable LivingEntity target) {
         int x = MathHelper.floor(at.x), z = MathHelper.floor(at.z);
         if (!world.isChunkLoaded(x >> 4, z >> 4)) return null;
         int y = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
-        GotiyaEntity g = ModEntities.GOTIYA.create(world);
+        GotiyaEntity g = create(world, new Vec3d(x + 0.5, y, z + 0.5));
         if (g == null) return null;
-        g.refreshPositionAndAngles(x + 0.5, y, z + 0.5, 0f, 0f);
         g.climax = true;
-        g.initialize(world, world.getLocalDifficulty(g.getBlockPos()), SpawnReason.EVENT, null, null);
-        g.applyName();
         if (target != null) g.threat = target.getPos();
         g.setState(DRYER);
         world.spawnEntity(g);
+        removeOthers(world.getServer(), g);
+        g.checkedUnique = true;
         world.spawnParticles(ParticleTypes.POOF, x + 0.5, y + 0.5, z + 0.5, 14, 0.3, 0.5, 0.3, 0.02);
         return g;
     }
 
-    /** The thing Gotiya wants to melt a path towards: the closest driven van, otherwise the closest player. */
+    // ---------------------------------------------------------------------------------------- tick
     @Nullable
-    private Vec3d findTarget() {
+    private IceVanEntity findVan() {
         IceVanEntity best = null;
-        double bd = 100 * 100;
-        for (IceVanEntity v : getWorld().getEntitiesByClass(IceVanEntity.class, getBoundingBox().expand(100), e -> true)) {
+        double bd = 150 * 150;
+        for (IceVanEntity v : getWorld().getEntitiesByClass(IceVanEntity.class, getBoundingBox().expand(150), e -> true)) {
             double d = v.squaredDistanceTo(this);
             if (d < bd) {
                 bd = d;
                 best = v;
             }
         }
-        if (best != null) return best.getPos();
-        PlayerEntity p = getWorld().getClosestPlayer(this, 100);
-        return p != null ? p.getPos() : null;
+        return best;
     }
 
     @Override
@@ -3588,18 +4091,19 @@ public class GotiyaEntity extends PathAwareEntity implements VillagerDataContain
             return;
         }
         ServerWorld sw = (ServerWorld) getWorld();
+        if (!checkedUnique) {
+            checkedUnique = true;
+            removeOthers(sw.getServer(), this);
+        }
         switch (state()) {
             case DRYER -> tickDryer(sw);
+            case WALK -> tickWalk(sw);
+            case SIT, FRIDGE -> tickSeated(sw);
             case FLEEING -> {
                 if (stateTicks % 25 == 5) playSound(SoundEvents.ENTITY_VILLAGER_HURT, 1.0f, 1.0f + random.nextFloat() * 0.3f);
                 if (stateTicks >= 160) {
-                    Vec3d t = climax ? findTarget() : null;
-                    if (t != null) {
-                        setState(DRYER);
-                    } else {
-                        sw.spawnParticles(ParticleTypes.POOF, getX(), getY() + 0.8, getZ(), 18, 0.3, 0.6, 0.3, 0.02);
-                        discard();
-                    }
+                    sw.spawnParticles(ParticleTypes.POOF, getX(), getY() + 0.8, getZ(), 18, 0.3, 0.6, 0.3, 0.02);
+                    discard();
                 }
             }
             default -> {
@@ -3608,14 +4112,95 @@ public class GotiyaEntity extends PathAwareEntity implements VillagerDataContain
         }
     }
 
-    /** The climax attack: hot air and flames toward the ice, melting a cone of the frozen road. */
-    private void tickDryer(ServerWorld sw) {
-        Vec3d target = findTarget();
-        if (target == null) {
-            if (stateTicks > 400) discard();
+    private boolean machineGone(ServerWorld sw) {
+        return anchor == null || !(sw.getBlockState(anchor).getBlock() instanceof com.iceage.yantra.block.YantraBlock);
+    }
+
+    private void tickWalk(ServerWorld sw) {
+        if (spot == null || machineGone(sw) || stateTicks > 1500) {
+            flee(null);
             return;
         }
-        getNavigation().stop();
+        double dist = getPos().multiply(1, 0, 1).distanceTo(spot.multiply(1, 0, 1));
+        if (dist < 1.3) {
+            getNavigation().stop();
+            if (gagTier == Tier.FAN.number) {
+                setState(SIT);
+                playSound(ModSounds.SQUEAK, 0.7f, 1.2f);
+            } else if (gagTier == Tier.FRIDGE.number) {
+                setState(FRIDGE);
+                playSound(SoundEvents.ENTITY_VILLAGER_CELEBRATE, 0.6f, 1.0f);
+            } else {
+                // Gola: stands in front of the machine shouting
+                if (stateTicks % 70 == 0) {
+                    playSound(SoundEvents.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                    dialogue(sw, getPos(), GOLA_LINE);
+                }
+                getLookControl().lookAt(Vec3d.ofCenter(anchor));
+            }
+            return;
+        }
+        if (stateTicks % 8 == 0 && !getNavigation().startMovingTo(spot.x, spot.y, spot.z, 0.75)) {
+            getMoveControl().moveTo(spot.x, spot.y, spot.z, 0.6);
+        }
+        if (stateTicks % 60 == 0) playSound(SoundEvents.ENTITY_VILLAGER_AMBIENT, 0.8f, 1.3f);
+    }
+
+    private void tickSeated(ServerWorld sw) {
+        if (machineGone(sw) || anchor == null) {
+            flee(null);
+            return;
+        }
+        Direction f = sw.getBlockState(anchor).contains(com.iceage.yantra.block.YantraBlock.FACING)
+                ? sw.getBlockState(anchor).get(com.iceage.yantra.block.YantraBlock.FACING) : Direction.NORTH;
+        Vec3d seat;
+        if (state() == FRIDGE) {
+            seat = Vec3d.ofBottomCenter(anchor).add(-f.getOffsetX() * 0.08, 0.06, -f.getOffsetZ() * 0.08);
+        } else {
+            seat = spot != null ? spot : getPos();
+        }
+        setPosition(seat.x, seat.y, seat.z);
+        setVelocity(Vec3d.ZERO);
+        float yaw = f.getOpposite().asRotation();
+        if (state() == FRIDGE) yaw = f.asRotation();
+        setYaw(yaw);
+        setBodyYaw(yaw);
+        setHeadYaw(yaw + MathHelper.sin(stateTicks * 0.07f) * 14f);
+        if (stateTicks % 70 == 20) {
+            String[] lines = state() == FRIDGE ? FRIDGE_LINES : FAN_LINES;
+            dialogue(sw, getPos(), lines[random.nextInt(lines.length)]);
+            playSound(ModSounds.SQUEAK, 0.5f, 1.4f);
+        }
+        if (stateTicks % 5 == 0) sw.spawnParticles(ModParticles.SNOWFLAKE, getX(), getY() + 1.2, getZ(), 2, 0.3, 0.3, 0.3, 0.01);
+    }
+
+    /** The climax: chase behind the van, blast hot air, melt 100% of the frozen blocks around. */
+    private void tickDryer(ServerWorld sw) {
+        IceVanEntity van = findVan();
+        Vec3d target;
+        if (van != null) {
+            target = van.getPos();
+            double yawR = Math.toRadians(van.getYaw());
+            Vec3d behind = van.getPos().add(Math.sin(yawR) * 11, 0, -Math.cos(yawR) * 11);
+            double dist = getPos().multiply(1, 0, 1).distanceTo(behind.multiply(1, 0, 1));
+            if (dist > 40) {
+                Vec3d g = groundNear(sw, behind.x, behind.z, van.getY());
+                refreshPositionAndAngles(g.x, g.y, g.z, getYaw(), 0f);
+                getNavigation().stop();
+            } else if (dist > 3) {
+                if (stateTicks % 4 == 0) getNavigation().startMovingTo(behind.x, behind.y, behind.z, 2.4);
+            } else {
+                getNavigation().stop();
+            }
+        } else {
+            PlayerEntity p = getWorld().getClosestPlayer(this, 100);
+            if (p == null) {
+                if (stateTicks > 400) discard();
+                return;
+            }
+            target = p.getPos();
+            getNavigation().stop();
+        }
         Vec3d to = target.subtract(getPos());
         double hd = Math.sqrt(to.x * to.x + to.z * to.z);
         if (hd < 1.0e-3) return;
@@ -3625,7 +4210,6 @@ public class GotiyaEntity extends PathAwareEntity implements VillagerDataContain
         setBodyYaw(yaw);
         setHeadYaw(yaw);
 
-        // the nozzle of the (oversized) hairdryer
         double nx = getX() + dx * 4.0, ny = getY() + 4.4, nz = getZ() + dz * 4.0;   // mouth of the giant hairdryer
         for (int i = 0; i < 6; i++) {
             double sp = 0.7 + random.nextDouble() * 0.5;
@@ -3640,31 +4224,32 @@ public class GotiyaEntity extends PathAwareEntity implements VillagerDataContain
             sw.playSound(null, getBlockPos(), SoundEvents.ENTITY_BLAZE_SHOOT, SoundCategory.HOSTILE, 1.0f, 0.5f);
             sw.playSound(null, getBlockPos(), SoundEvents.ITEM_FIRECHARGE_USE, SoundCategory.HOSTILE, 0.8f, 0.6f);
         }
-        if (stateTicks % 4 == 0) {
-            // melt a widening cone: frozen blocks become (briefly flowing) water, the ground stays
-            double px = -dz, pz = dx;
-            int melted = 0;
-            for (int t = 2; t <= 16 && melted < 18; t++) {
-                int half = Math.max(1, (int) Math.round(t * 0.22));
-                for (int l = -half; l <= half; l++) {
-                    int x = MathHelper.floor(getX() + dx * t + px * l);
-                    int z = MathHelper.floor(getZ() + dz * t + pz * l);
-                    melted += FreezeEngine.meltColumn(sw, x, z, MathHelper.floor(getY()));
-                }
+        // melt EVERYTHING frozen in a wide area between him and the van, rapidly
+        Vec3d c = getPos().add(to.multiply(0.3));
+        int cx = MathHelper.floor(c.x), cz = MathHelper.floor(c.z), cy = MathHelper.floor(getY());
+        int melted = 0;
+        outer:
+        for (int ix = -16; ix <= 16; ix++) {
+            for (int iz = -16; iz <= 16; iz++) {
+                if (ix * ix + iz * iz > 16 * 16) continue;
+                melted += FreezeEngine.meltColumn(sw, cx + ix, cz + iz, cy);
+                if (melted >= 160) break outer;
             }
-            if (melted > 0) {
-                sw.spawnParticles(ParticleTypes.CLOUD, getX() + dx * 7, getY() + 0.6, getZ() + dz * 7, 8, 2.0, 0.3, 2.0, 0.02);
-                sw.playSound(null, getBlockPos(), SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.HOSTILE, 0.5f, 1.1f);
-            }
+        }
+        if (melted > 0) {
+            sw.spawnParticles(ModParticles.FROST_MIST, c.x, getY() + 0.6, c.z, 10, 3.0, 0.3, 3.0, 0.02);
+            if (stateTicks % 6 == 0) sw.playSound(null, getBlockPos(), SoundEvents.BLOCK_FIRE_EXTINGUISH, SoundCategory.HOSTILE, 0.6f, 1.1f);
         }
         if (stateTicks % 40 == 10) playSound(SoundEvents.ENTITY_VILLAGER_AMBIENT, 0.9f, 0.7f);
     }
 
-    /** Scream and run away at normal panic speed. */
+    /** Scream and run away at normal panic speed; the hairdryer vanishes instantly. */
     public void flee(@Nullable PlayerEntity by) {
         if (state() == FLEEING) return;
+        boolean hadDryer = hasHairdryer();
         threat = by != null ? by.getPos() : getPos().add(random.nextGaussian(), 0, random.nextGaussian());
         setState(FLEEING);
+        getNavigation().stop();
         playSound(SoundEvents.ENTITY_VILLAGER_HURT, 1.4f, 1.0f);
         Vec3d away = getPos().subtract(threat).multiply(1, 0, 1);
         if (away.lengthSquared() < 0.01) away = new Vec3d(1, 0, 0);
@@ -3674,13 +4259,24 @@ public class GotiyaEntity extends PathAwareEntity implements VillagerDataContain
         if (getWorld() instanceof ServerWorld sw) {
             sw.spawnParticles(ParticleTypes.SPLASH, getX(), getY() + 1.8, getZ(), 18, 0.3, 0.3, 0.3, 0.2);
             sw.spawnParticles(ParticleTypes.ANGRY_VILLAGER, getX(), getY() + 2.0, getZ(), 3, 0.3, 0.2, 0.3, 0.0);
+            if (hadDryer) {
+                // the giant hairdryer drops and vanishes in a puff of smoke
+                Vec3d f = getRotationVec(1f).multiply(1, 0, 1).normalize();
+                sw.spawnParticles(ParticleTypes.POOF, getX() + f.x * 3, getY() + 3.2, getZ() + f.z * 3, 30, 0.8, 0.8, 0.8, 0.05);
+                sw.spawnParticles(ParticleTypes.LARGE_SMOKE, getX() + f.x * 3, getY() + 3.2, getZ() + f.z * 3, 14, 0.8, 0.8, 0.8, 0.03);
+                sw.playSound(null, getBlockPos(), ModSounds.HANDLE_POP, SoundCategory.HOSTILE, 1.4f, 0.8f);
+            }
         }
     }
 
     private void clientFx() {
-        if (state() != FLEEING && random.nextInt(4) == 0) {
+        if (state() != FLEEING && !isSitting() && random.nextInt(4) == 0) {
             getWorld().addParticle(ParticleTypes.FALLING_WATER, getX() + (random.nextDouble() - 0.5) * 0.5, getY() + 1.9,
                     getZ() + (random.nextDouble() - 0.5) * 0.5, 0, 0, 0);
+        }
+        if (isSitting() && random.nextInt(5) == 0) {
+            getWorld().addParticle(ModParticles.SNOWFLAKE, getX() + (random.nextDouble() - 0.5) * 0.7, getY() + 1.0 + random.nextDouble(),
+                    getZ() + (random.nextDouble() - 0.5) * 0.7, 0, -0.01, 0);
         }
     }
 
@@ -3693,7 +4289,7 @@ public class GotiyaEntity extends PathAwareEntity implements VillagerDataContain
 
     @Override
     public boolean isPushable() {
-        return state() != DRYER;
+        return state() != DRYER && !isSitting();
     }
 
     @Override
@@ -3716,14 +4312,19 @@ public class GotiyaEntity extends PathAwareEntity implements VillagerDataContain
         super.writeCustomDataToNbt(nbt);
         nbt.putInt("gotiyaState", state());
         nbt.putBoolean("climax", climax);
+        nbt.putInt("gagTier", gagTier);
+        if (anchor != null) nbt.putLong("anchor", anchor.asLong());
     }
 
     @Override
     public void readCustomDataFromNbt(NbtCompound nbt) {
         super.readCustomDataFromNbt(nbt);
         climax = nbt.getBoolean("climax");
+        gagTier = nbt.getInt("gagTier");
+        if (nbt.contains("anchor")) anchor = BlockPos.fromLong(nbt.getLong("anchor"));
         int s = nbt.getInt("gotiyaState");
-        dataTracker.set(STATE, s == FLEEING ? FLEEING : (s == DRYER ? DRYER : IDLE));
+        // gags do not resume after a reload: he just wanders off
+        dataTracker.set(STATE, s == DRYER ? DRYER : (s == FLEEING ? FLEEING : IDLE));
         applyName();
     }
 
@@ -3805,7 +4406,7 @@ public class IceVanEntity extends Entity {
     private static final int MAX_COMBO = 20;
     private static final int COMBO_RAMP_SECONDS = 40;
     private static final int POINTS_PER_BLOCK = 30;
-    private static final int ROAD_HALF_WIDTH = 3;
+    private static final int ROAD_HALF_WIDTH = 5;
 
     private float speed;
     private int lerpSteps;
@@ -3825,7 +4426,7 @@ public class IceVanEntity extends Entity {
 
     public IceVanEntity(EntityType<? extends IceVanEntity> type, World world) {
         super(type, world);
-        setStepHeight(1.1f);
+        setStepHeight(1.2f);   // climbs 1-block terrain, hills and ice obstacles smoothly
     }
 
     public void setOwner(UUID id) {
@@ -4043,6 +4644,18 @@ public class IceVanEntity extends Entity {
             IcePoints.award(world.getServer(), driver.getUuid(), (long) changed * POINTS_PER_BLOCK * combo);
         }
 
+        // wide frozen path: random columns out to 10 blocks on both sides of the van
+        int extra = 0;
+        for (int k = 0; k < 14; k++) {
+            double l = (random.nextDouble() * 2 - 1) * 10.0, a = random.nextDouble() * 8.0 - 1.0;
+            int x = MathHelper.floor(getX() + fx * a + lx * l), z = MathHelper.floor(getZ() + fz * a + lz * l);
+            extra += FreezeEngine.freezeColumn(world, x, z, roadY, 3, 4);
+        }
+        if (extra > 0) IcePoints.award(world.getServer(), driver.getUuid(), (long) extra * POINTS_PER_BLOCK * combo);
+        // massive ice explosion: 20-30 flying ice blocks shot outward to the left and right every second
+        if (age % 20 == 0) {
+            for (int side = -1; side <= 1; side += 2) iceBurst(world, side, fx, fz, lx, lz, 10 + random.nextInt(6));
+        }
         // side cannons: snowballs and spinning ice particles to the left and right
         if (age % 3 == 0) {
             for (int side = -1; side <= 1; side += 2) fireSnowball(world, side, fx, fz, lx, lz);
@@ -4052,6 +4665,24 @@ public class IceVanEntity extends Entity {
             world.playSound(null, getBlockPos(), com.iceage.yantra.ModSounds.FREEZE, SoundCategory.NEUTRAL, 0.8f, 0.6f + random.nextFloat() * 0.3f);
         }
         world.spawnParticles(ModParticles.FROST_MIST, getX() - fx * 2.7, getY() + 0.4, getZ() - fz * 2.7, 6, 1.2, 0.3, 1.2, 0.05);
+    }
+
+    private void iceBurst(ServerWorld world, int side, double fx, double fz, double lx, double lz, int count) {
+        BlockPos spawn = BlockPos.ofFloored(getX() + lx * side * 2.0, getY() + 3.2, getZ() + lz * side * 2.0);
+        if (!world.getBlockState(spawn).isAir()) return;
+        for (int i = 0; i < count; i++) {
+            net.minecraft.block.BlockState ice = random.nextInt(3) == 0 ? net.minecraft.block.Blocks.BLUE_ICE.getDefaultState()
+                    : net.minecraft.block.Blocks.PACKED_ICE.getDefaultState();
+            net.minecraft.entity.FallingBlockEntity fb = net.minecraft.entity.FallingBlockEntity.spawnFromBlock(world, spawn, ice);
+            fb.dropItem = false;
+            fb.setHurtEntities(1.0f, 10);
+            double out = 0.8 + random.nextDouble() * 0.9;
+            double along = (random.nextDouble() - 0.4) * 0.9 + speed * 0.8;
+            fb.setVelocity(lx * side * out + fx * along, 0.35 + random.nextDouble() * 0.5, lz * side * out + fz * along);
+            fb.velocityModified = true;
+        }
+        world.spawnParticles(ModParticles.ICE_SHARD, spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5, 30, 0.4, 0.4, 0.4, 0.5);
+        world.spawnParticles(ModParticles.SNOWFLAKE, spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5, 30, 0.8, 0.5, 0.8, 0.3);
     }
 
     private void fireSnowball(ServerWorld world, int side, double fx, double fz, double lx, double lz) {
@@ -4096,7 +4727,7 @@ public class IceVanEntity extends Entity {
             return;
         }
         double yaw = Math.toRadians(getYaw());
-        Vec3d at = getPos().add(-Math.sin(yaw) * 30, 0, Math.cos(yaw) * 30);
+        Vec3d at = getPos().add(Math.sin(yaw) * 12, 0, -Math.cos(yaw) * 12);   // Gotiya starts BEHIND the van and chases it
         if (!world.isChunkLoaded(MathHelper.floor(at.x) >> 4, MathHelper.floor(at.z) >> 4)) return;
         GotiyaEntity g = GotiyaEntity.spawnClimax(world, at, driver);
         if (g != null) gotiya = g.getUuid();

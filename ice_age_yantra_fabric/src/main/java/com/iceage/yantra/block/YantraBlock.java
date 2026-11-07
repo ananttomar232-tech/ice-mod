@@ -53,13 +53,22 @@ public class YantraBlock extends BlockWithEntity {
 
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(World world, BlockState state, BlockEntityType<T> type) {
-        if (!world.isClient || type != ModBlocks.YANTRA_BE) return null;
-        return (w, p, s, be) -> YantraBlockEntity.clientTick(w, p, s, (YantraBlockEntity) be);
+        if (type != ModBlocks.YANTRA_BE) return null;
+        if (world.isClient) return (w, p, s, be) -> YantraBlockEntity.clientTick(w, p, s, (YantraBlockEntity) be);
+        return (w, p, s, be) -> YantraBlockEntity.serverTick(w, p, s, (YantraBlockEntity) be);
     }
 
     @Override
     protected void appendProperties(StateManager.Builder<Block, BlockState> builder) {
         builder.add(FACING);
+    }
+
+    /** A machine that has started its cycle is used up: breaking it drops nothing. */
+    @Override
+    public java.util.List<net.minecraft.item.ItemStack> getDroppedStacks(BlockState state, net.minecraft.loot.context.LootContextParameterSet.Builder builder) {
+        BlockEntity be = builder.getOptional(net.minecraft.loot.context.LootContextParameters.BLOCK_ENTITY);
+        if (be instanceof YantraBlockEntity y && y.phase != YantraBlockEntity.IDLE) return java.util.List.of();
+        return super.getDroppedStacks(state, builder);
     }
 
     @Override
@@ -85,8 +94,8 @@ public class YantraBlock extends BlockWithEntity {
     @Override
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, Hand hand, BlockHitResult hit) {
         if (world.isClient) return ActionResult.SUCCESS;
-        if (world instanceof ServerWorld sw && player instanceof ServerPlayerEntity sp) {
-            YantraActions.activate(sw, pos, state.get(FACING), sp, tier);
+        if (player instanceof ServerPlayerEntity sp && world.getBlockEntity(pos) instanceof YantraBlockEntity be) {
+            be.tryStart(sp);   // one single right-click runs the whole cycle; used-up machines ignore clicks
         }
         return ActionResult.CONSUME;
     }

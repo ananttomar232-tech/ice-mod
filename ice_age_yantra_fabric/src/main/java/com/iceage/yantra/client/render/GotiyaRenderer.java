@@ -36,7 +36,13 @@ public class GotiyaRenderer extends MobEntityRenderer<GotiyaEntity, GotiyaRender
 
     @Override
     protected void scale(GotiyaEntity e, MatrixStack ps, float amount) {
-        ps.scale(0.9375f, 0.9375f, 0.9375f);
+        float s = 0.9375f;
+        if (e.isSitting()) {
+            float t = e.age + amount;
+            ps.translate(MathHelper.sin(t * 2.3f) * 0.012f, -0.4f, MathHelper.cos(t * 2.9f) * 0.012f);   // shivering
+            s *= 0.82f;
+        }
+        ps.scale(s, s, s);
     }
 
     @Override
@@ -67,12 +73,14 @@ public class GotiyaRenderer extends MobEntityRenderer<GotiyaEntity, GotiyaRender
 
     /** Villager model with the arms posed for the struggle with the hairdryer / fleeing. */
     public static class Model extends VillagerResemblingModel<GotiyaEntity> {
-        private final ModelPart arms, head;
+        private final ModelPart arms, head, rightLeg, leftLeg;
 
         public Model(ModelPart root) {
             super(root);
             arms = root.getChild("arms");
             head = root.getChild("head");
+            rightLeg = root.getChild("right_leg");
+            leftLeg = root.getChild("left_leg");
         }
 
         @Override
@@ -80,7 +88,16 @@ public class GotiyaRenderer extends MobEntityRenderer<GotiyaEntity, GotiyaRender
             super.setAngles(e, limbAngle, limbDistance, age, headYaw, headPitch);
             arms.pitch = -0.75f;
             arms.roll = 0f;
-            if (e.hasHairdryer()) {
+            rightLeg.roll = 0f;
+            leftLeg.roll = 0f;
+            if (e.isSitting()) {
+                rightLeg.pitch = -1.4137167f;
+                rightLeg.yaw = 0.31415927f;
+                leftLeg.pitch = -1.4137167f;
+                leftLeg.yaw = -0.31415927f;
+                head.roll = MathHelper.sin(age * 1.9f) * 0.045f;
+                arms.pitch = -0.95f + MathHelper.sin(age * 2.2f) * 0.03f;
+            } else if (e.hasHairdryer()) {
                 arms.pitch = -1.9f + MathHelper.sin(age * 0.4f) * 0.12f;
                 head.pitch = -0.35f;
                 head.roll = MathHelper.sin(age * 0.3f) * 0.12f;

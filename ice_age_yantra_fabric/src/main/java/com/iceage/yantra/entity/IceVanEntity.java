@@ -56,7 +56,7 @@ public class IceVanEntity extends Entity {
     private static final int MAX_COMBO = 20;
     private static final int COMBO_RAMP_SECONDS = 40;
     private static final int POINTS_PER_BLOCK = 30;
-    private static final int ROAD_HALF_WIDTH = 3;
+    private static final int ROAD_HALF_WIDTH = 5;
 
     private float speed;
     private int lerpSteps;
@@ -76,7 +76,7 @@ public class IceVanEntity extends Entity {
 
     public IceVanEntity(EntityType<? extends IceVanEntity> type, World world) {
         super(type, world);
-        setStepHeight(1.1f);
+        setStepHeight(1.2f);   // climbs 1-block terrain, hills and ice obstacles smoothly
     }
 
     public void setOwner(UUID id) {
@@ -294,6 +294,18 @@ public class IceVanEntity extends Entity {
             IcePoints.award(world.getServer(), driver.getUuid(), (long) changed * POINTS_PER_BLOCK * combo);
         }
 
+        // wide frozen path: random columns out to 10 blocks on both sides of the van
+        int extra = 0;
+        for (int k = 0; k < 14; k++) {
+            double l = (random.nextDouble() * 2 - 1) * 10.0, a = random.nextDouble() * 8.0 - 1.0;
+            int x = MathHelper.floor(getX() + fx * a + lx * l), z = MathHelper.floor(getZ() + fz * a + lz * l);
+            extra += FreezeEngine.freezeColumn(world, x, z, roadY, 3, 4);
+        }
+        if (extra > 0) IcePoints.award(world.getServer(), driver.getUuid(), (long) extra * POINTS_PER_BLOCK * combo);
+        // massive ice explosion: 20-30 flying ice blocks shot outward to the left and right every second
+        if (age % 20 == 0) {
+            for (int side = -1; side <= 1; side += 2) iceBurst(world, side, fx, fz, lx, lz, 10 + random.nextInt(6));
+        }
         // side cannons: snowballs and spinning ice particles to the left and right
         if (age % 3 == 0) {
             for (int side = -1; side <= 1; side += 2) fireSnowball(world, side, fx, fz, lx, lz);
@@ -303,6 +315,24 @@ public class IceVanEntity extends Entity {
             world.playSound(null, getBlockPos(), com.iceage.yantra.ModSounds.FREEZE, SoundCategory.NEUTRAL, 0.8f, 0.6f + random.nextFloat() * 0.3f);
         }
         world.spawnParticles(ModParticles.FROST_MIST, getX() - fx * 2.7, getY() + 0.4, getZ() - fz * 2.7, 6, 1.2, 0.3, 1.2, 0.05);
+    }
+
+    private void iceBurst(ServerWorld world, int side, double fx, double fz, double lx, double lz, int count) {
+        BlockPos spawn = BlockPos.ofFloored(getX() + lx * side * 2.0, getY() + 3.2, getZ() + lz * side * 2.0);
+        if (!world.getBlockState(spawn).isAir()) return;
+        for (int i = 0; i < count; i++) {
+            net.minecraft.block.BlockState ice = random.nextInt(3) == 0 ? net.minecraft.block.Blocks.BLUE_ICE.getDefaultState()
+                    : net.minecraft.block.Blocks.PACKED_ICE.getDefaultState();
+            net.minecraft.entity.FallingBlockEntity fb = net.minecraft.entity.FallingBlockEntity.spawnFromBlock(world, spawn, ice);
+            fb.dropItem = false;
+            fb.setHurtEntities(1.0f, 10);
+            double out = 0.8 + random.nextDouble() * 0.9;
+            double along = (random.nextDouble() - 0.4) * 0.9 + speed * 0.8;
+            fb.setVelocity(lx * side * out + fx * along, 0.35 + random.nextDouble() * 0.5, lz * side * out + fz * along);
+            fb.velocityModified = true;
+        }
+        world.spawnParticles(ModParticles.ICE_SHARD, spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5, 30, 0.4, 0.4, 0.4, 0.5);
+        world.spawnParticles(ModParticles.SNOWFLAKE, spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5, 30, 0.8, 0.5, 0.8, 0.3);
     }
 
     private void fireSnowball(ServerWorld world, int side, double fx, double fz, double lx, double lz) {
@@ -347,7 +377,7 @@ public class IceVanEntity extends Entity {
             return;
         }
         double yaw = Math.toRadians(getYaw());
-        Vec3d at = getPos().add(-Math.sin(yaw) * 30, 0, Math.cos(yaw) * 30);
+        Vec3d at = getPos().add(Math.sin(yaw) * 12, 0, -Math.cos(yaw) * 12);   // Gotiya starts BEHIND the van and chases it
         if (!world.isChunkLoaded(MathHelper.floor(at.x) >> 4, MathHelper.floor(at.z) >> 4)) return;
         GotiyaEntity g = GotiyaEntity.spawnClimax(world, at, driver);
         if (g != null) gotiya = g.getUuid();

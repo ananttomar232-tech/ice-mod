@@ -35,6 +35,7 @@ public class IceAgeYantraClient implements ClientModInitializer {
         EntityRendererRegistry.register(ModEntities.ICE_VAN, VanRenderer::new);
         EntityRendererRegistry.register(ModEntities.GOTIYA, GotiyaRenderer::new);
         ItemRigs.register();
+        VanCamera.register();
         ParticleFactoryRegistry pf = ParticleFactoryRegistry.getInstance();
         pf.register(ModParticles.FROST_SWIRL, s -> new FrostParticles.Provider(s, FrostParticles.Kind.SWIRL));
         pf.register(ModParticles.ICE_SHARD, s -> new FrostParticles.Provider(s, FrostParticles.Kind.SHARD));

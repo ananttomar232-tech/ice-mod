@@ -71,6 +71,16 @@ public class ShowcaseBlock extends BlockWithEntity {
             world.playSound(null, pos, SoundEvents.ENTITY_VILLAGER_NO, SoundCategory.BLOCKS, 0.8f, 1.2f);
             return ActionResult.CONSUME;
         }
+        if (tier == Tier.GOLA) {
+            com.iceage.yantra.IceData data = com.iceage.yantra.IceData.get(world.getServer());
+            com.iceage.yantra.IceData.Entry en = data.entry(player.getUuid());
+            if (en.golaBought >= 2) {
+                world.playSound(null, pos, SoundEvents.ENTITY_VILLAGER_NO, SoundCategory.BLOCKS, 0.8f, 1.2f);
+                return ActionResult.CONSUME;
+            }
+            en.golaBought++;
+            data.markDirty();
+        }
         ItemStack stack = new ItemStack(ModItems.forTier(tier));
         if (!player.getInventory().insertStack(stack)) player.dropItem(stack, false);
         world.playSound(null, pos, com.iceage.yantra.ModSounds.PURCHASE, SoundCategory.BLOCKS, 1.0f, 1.0f);

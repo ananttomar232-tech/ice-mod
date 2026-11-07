@@ -33,17 +33,21 @@ public final class ItemRigs {
             YantraRig.fan(ps, buf, light, overlay, time * 8f, 0, 0, time);
         } else if (item == ModItems.RETRO_FRIDGE) {
             ps.translate(0.5, 0, 0.5);
-            ps.scale(0.5f, 0.5f, 0.5f);
+            ps.scale(0.62f, 0.62f, 0.62f);
             ps.translate(-0.5, 0, -0.5);
             YantraRig.fridge(ps, buf, light, overlay, 0, 0);
         } else if (item == ModItems.AC_UNIT) {
             YantraRig.ac(ps, buf, light, overlay, time * 6f);
         } else if (item == ModItems.ICE_CREAM_VAN) {
             ps.translate(0.5, 0.05, 0.5);
-            ps.scale(0.2f, 0.2f, 0.2f);
+            ps.scale(0.23f, 0.23f, 0.23f);
             YantraRig.van(ps, buf, light, overlay, 0, 0, time, false);
         } else if (item == ModItems.VILLAGE_PORTAL) {
+            ps.translate(0.5, 0.0, 0.5);
+            ps.scale(0.36f, 0.36f, 0.36f);
+            ps.translate(-0.5, 0.0, -0.5);
             ObjParts.PORTAL_FRAME.render(ps, buf, light, overlay);
+            PortalRenderer.renderVortex(ps, buf, time, 0f);   // the swirling blue centre, not just an empty border
         }
         ps.pop();
     }

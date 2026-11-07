@@ -20,6 +20,7 @@ public class IceData extends PersistentState {
         public long points;
         public float speed = 1.0f;
         public boolean gotStarter;
+        public int golaBought;
         public boolean hasReturn;
         public double rx, ry, rz;
         public float ryaw;
@@ -29,6 +30,7 @@ public class IceData extends PersistentState {
             t.putLong("points", points);
             t.putFloat("speed", speed);
             t.putBoolean("starter", gotStarter);
+            t.putInt("golaBought", golaBought);
             if (hasReturn) {
                 NbtCompound r = new NbtCompound();
                 r.putDouble("x", rx);
@@ -45,6 +47,7 @@ public class IceData extends PersistentState {
             e.points = t.getLong("points");
             e.speed = t.contains("speed") ? t.getFloat("speed") : 1.0f;
             e.gotStarter = t.getBoolean("starter");
+            e.golaBought = t.getInt("golaBought");
             if (t.contains(RETURN_POS, NbtElement.COMPOUND_TYPE)) {
                 NbtCompound r = t.getCompound(RETURN_POS);
                 e.hasReturn = true;

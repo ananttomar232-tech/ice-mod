@@ -23,31 +23,8 @@ public final class YantraActions {
     private YantraActions() {
     }
 
-    public static void activate(ServerWorld world, BlockPos pos, Direction facing, ServerPlayerEntity player, Tier tier) {
-        long now = world.getTime();
-        Long last = COOLDOWN.get(pos.asLong());
-        if (last != null && now - last < 25) return;
-        COOLDOWN.put(pos.asLong(), now);
-        if (COOLDOWN.size() > 512) COOLDOWN.clear();
-
-        world.addSyncedBlockEvent(pos, world.getBlockState(pos).getBlock(), com.iceage.yantra.block.YantraBlockEntity.EVENT_ACTIVATE, 0);
-        int projectiles = 20 + world.random.nextInt(11);
-        launch(world, pos, facing, tier, projectiles);
-        int frozen = freeze(world, pos, facing, tier);
-        effects(world, pos, facing, tier);
-
-        long mult = switch (tier) {
-            case GOLA -> 1;
-            case FAN -> 3;
-            case FRIDGE -> 8;
-            case AC -> 25;
-            case VAN -> 1;
-        };
-        IcePoints.award(world.getServer(), player.getUuid(), frozen + projectiles * mult);
-    }
-
     /** Fires the flying ice blocks (real falling-block entities) that land and become packed/blue ice. */
-    private static void launch(ServerWorld world, BlockPos pos, Direction facing, Tier tier, int count) {
+    public static void launch(ServerWorld world, BlockPos pos, Direction facing, Tier tier, int count) {
         BlockPos spawn = pos.up();
         if (!world.getBlockState(spawn).isAir()) spawn = pos.up(2);
         if (!world.getBlockState(spawn).isAir()) return;
@@ -125,7 +102,7 @@ public final class YantraActions {
         return changed;
     }
 
-    private static void effects(ServerWorld world, BlockPos pos, Direction facing, Tier tier) {
+    public static void effects(ServerWorld world, BlockPos pos, Direction facing, Tier tier) {
         Vec3d c = Vec3d.ofCenter(pos).add(0, 0.6, 0);
         world.spawnParticles(ModParticles.SNOWFLAKE, c.x, c.y, c.z, 60, 1.2, 0.8, 1.2, 0.15);
         world.spawnParticles(ModParticles.ICE_SHARD, c.x, c.y, c.z, 40, 0.8, 0.6, 0.8, 0.35);

@@ -40,9 +40,24 @@ public final class IcePoints {
         return after - before;
     }
 
+    /** Awards exactly this many blocks (used by Yantra cycles, so each cycle yields the exact price of the next tier). */
+    public static long awardExact(MinecraftServer server, UUID id, long amount) {
+        if (server == null || id == null || amount <= 0) return 0;
+        IceData data = IceData.get(server);
+        IceData.Entry e = data.entry(id);
+        long before = e.points;
+        if (before >= Tier.FINAL_TARGET) return 0;
+        long after = Math.min(Tier.FINAL_TARGET, before + amount);
+        e.points = after;
+        data.markDirty();
+        PENDING.merge(id, after - before, Long::sum);
+        return after - before;
+    }
+
     public static void set(MinecraftServer server, UUID id, long value) {
         IceData data = IceData.get(server);
         data.entry(id).points = Math.max(0L, Math.min(Tier.FINAL_TARGET, value));
+        if (value == 0L) data.entry(id).golaBought = 0;
         data.markDirty();
         PENDING.merge(id, 0L, Long::sum);
     }

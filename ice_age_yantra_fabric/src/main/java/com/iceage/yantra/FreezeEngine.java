@@ -57,6 +57,7 @@ public final class FreezeEngine {
                 continue;
             }
             if (isProtected(w, m, s)) return changed;
+            FrozenMemory.get(w).remember(m.toImmutable(), fluid && s.getBlock() instanceof FluidBlock ? Blocks.WATER.getDefaultState() : s);
             w.setBlockState(m, iceFor(w, m), FLAGS);
             return changed + 1;
         }
@@ -70,6 +71,7 @@ public final class FreezeEngine {
         BlockState s = w.getBlockState(road);
         if (s.isAir() || (!s.getFluidState().isEmpty()) || (s.isReplaceable())) {
             if (!isProtected(w, road, s) || s.isAir()) {
+                FrozenMemory.get(w).remember(road, s.getFluidState().isEmpty() ? s : Blocks.WATER.getDefaultState());
                 w.setBlockState(road, Blocks.PACKED_ICE.getDefaultState(), FLAGS);
                 return 1;
             }
@@ -78,17 +80,23 @@ public final class FreezeEngine {
         return freezeColumn(w, x, z, roadY, 0, 1);
     }
 
-    /** Hairdryer: turns packed/blue ice of a column back into (briefly flowing) water, leaving the ground below. */
+    /**
+     * Hairdryer: melts frozen blocks of a column back to what they used to be (grass/dirt ground, water, air). Ice
+     * without a memory (a landed ice projectile) simply disappears, natural ice becomes water. Never digs holes.
+     */
     public static int meltColumn(ServerWorld w, int x, int z, int yRef) {
         if (!w.isChunkLoaded(x >> 4, z >> 4)) return 0;
         BlockPos.Mutable m = new BlockPos.Mutable();
+        FrozenMemory mem = null;
         int changed = 0;
         for (int y = yRef + 2; y >= yRef - 3; y--) {
             m.set(x, y, z);
             BlockState s = w.getBlockState(m);
             if (!isFrozen(s) || ShopBuilder.isInShopZone(m)) continue;
-            BlockState water = Blocks.WATER.getDefaultState().with(FluidBlock.LEVEL, 3);
-            w.setBlockState(m, water, Block.NOTIFY_ALL);
+            if (mem == null) mem = FrozenMemory.get(w);
+            BlockState orig = mem.take(m);
+            BlockState now = orig != null ? orig : (s.isOf(Blocks.ICE) ? Blocks.WATER.getDefaultState() : Blocks.AIR.getDefaultState());
+            w.setBlockState(m, now, FLAGS);
             changed++;
         }
         return changed;

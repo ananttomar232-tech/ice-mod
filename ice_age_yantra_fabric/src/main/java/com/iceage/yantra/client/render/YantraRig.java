@@ -40,7 +40,7 @@ public final class YantraRig {
         ObjParts.GOLA_WHEEL.render(ps, buf, light, overlay);
         if (handleState == 0) ObjParts.GOLA_HANDLE.render(ps, buf, light, overlay);
         ps.pop();
-        if (handleState != 0) {
+        if (handleState == 1 || handleState == 2) {
             double hx = RigData.GOLA_HANDLE_TOP_X, hy = RigData.GOLA_HANDLE_TOP_Y - 0.26, hz = RigData.GOLA_HANDLE_TOP_Z;
             double ex = hx + 0.95, ey = 0.035, ez = hz - 0.25;
             float t = handleState == 1 ? MathHelper.clamp(handleT, 0f, 1f) : 1f;

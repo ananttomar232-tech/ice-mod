@@ -83,7 +83,7 @@ public class ShowcaseRenderer implements BlockEntityRenderer<ShowcaseBlockEntity
         String status;
         int statusColor;
         if (affordable) {
-            status = "RIGHT-CLICK TO TAKE";
+            status = tier == Tier.GOLA ? "RIGHT-CLICK TO TAKE (MAX 2)" : "RIGHT-CLICK TO TAKE";
             statusColor = 0xFFE27A;
         } else {
             status = "LOCKED - " + String.format(Locale.US, "%,d", tier.price - ClientIceState.points) + " MORE";

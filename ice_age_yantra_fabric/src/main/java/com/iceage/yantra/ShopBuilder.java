@@ -14,17 +14,17 @@ import net.minecraft.util.math.Vec3d;
  * no chunk-loading lag). Packed ice, blue ice, glowstone lighting and glass display pedestals.
  */
 public final class ShopBuilder {
-    public static final int VERSION = 3;
+    public static final int VERSION = 4;
     public static final int CX = 10000, CZ = 10000;
-    public static final int FLOOR = 120, TOP = 127;
-    public static final int X0 = CX - 7, X1 = CX + 7, Z0 = CZ - 7, Z1 = CZ + 7;
+    public static final int FLOOR = 120, TOP = 133;
+    public static final int X0 = CX - 15, X1 = CX + 15, Z0 = CZ - 15, Z1 = CZ + 15;
     /** Where players arrive: standing on the floor (top of the floor blocks = Y 121.0). */
     public static final Vec3d ARRIVAL = new Vec3d(10000.5, 121.0, 10000.5);
     /** Showcase blocks (tier = index + 1). Their glass pedestal stands one block below. */
     public static final BlockPos[] SHOWCASES = {
-            new BlockPos(CX - 4, FLOOR + 1, CZ - 3), new BlockPos(CX + 4, FLOOR + 1, CZ - 3),
-            new BlockPos(CX - 4, FLOOR + 1, CZ + 3), new BlockPos(CX + 4, FLOOR + 1, CZ + 3),
-            new BlockPos(CX, FLOOR + 1, CZ + 4)
+            new BlockPos(CX - 10, FLOOR + 1, CZ - 5), new BlockPos(CX + 10, FLOOR + 1, CZ - 5),
+            new BlockPos(CX - 10, FLOOR + 1, CZ + 5), new BlockPos(CX + 10, FLOOR + 1, CZ + 5),
+            new BlockPos(CX, FLOOR + 1, CZ + 10)
     };
     public static final int FLAGS = Block.NOTIFY_LISTENERS | Block.FORCE_STATE;
 
@@ -109,13 +109,15 @@ public final class ShopBuilder {
                 }
             }
         }
-        // glowstone lighting: ceiling grid and wall lamps
-        for (int i = 3; i <= 11; i += 4) {
-            for (int j = 3; j <= 11; j += 4) set(w, X0 + i, TOP, Z0 + j, glow);
-            set(w, X0 + i, FLOOR + 4, Z0, glow);
-            set(w, X0 + i, FLOOR + 4, Z1, glow);
-            set(w, X0, FLOOR + 4, Z0 + i, glow);
-            set(w, X1, FLOOR + 4, Z0 + i, glow);
+        // glowstone lighting: ceiling grid and two rows of wall lamps
+        for (int i = 3; i < X1 - X0 - 2; i += 4) {
+            for (int j = 3; j < Z1 - Z0 - 2; j += 4) set(w, X0 + i, TOP, Z0 + j, glow);
+            for (int y : new int[]{FLOOR + 4, FLOOR + 9}) {
+                set(w, X0 + i, y, Z0, glow);
+                set(w, X0 + i, y, Z1, glow);
+                set(w, X0, y, Z0 + i, glow);
+                set(w, X1, y, Z0 + i, glow);
+            }
         }
         // glass display pedestals: a 3 x 3 glass plate in the floor, lit from below by glowstone, carrying the showcase
         for (int i = 0; i < SHOWCASES.length; i++) {

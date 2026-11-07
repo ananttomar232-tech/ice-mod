@@ -37,7 +37,11 @@ public class PortalRenderer implements BlockEntityRenderer<PortalBlockEntity> {
         ps.translate(-0.5, 0, -0.5);
         ObjParts.PORTAL_FRAME.render(ps, buf, light, overlay);
         ps.pop();
-        // vortex
+        renderVortex(ps, buf, t, yaw);
+    }
+
+    /** The swirling blue magical centre of the arch (also used by the portal item). */
+    public static void renderVortex(MatrixStack ps, VertexConsumerProvider buf, float t, float yaw) {
         ps.push();
         ps.translate(0.5, 1.3, 0.5);
         ps.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(yaw));
