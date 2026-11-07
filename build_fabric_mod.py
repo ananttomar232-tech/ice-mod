@@ -2438,7 +2438,8 @@ public final class CinematicCamera {
     private static boolean active;
     private static List<Seg> segs;
     private static int segIndex;
-    private static long segStartNs;
+    private static double segTime;
+    private static final double DT = 0.05;   // one game tick
     private static double[] segStartPose, lastPose;
     private static Entity camEntity;
     /** Vanilla never draws the local player when the camera is another entity, so a client-only double stands in. */
@@ -2464,7 +2465,9 @@ public final class CinematicCamera {
         ClientTickEvents.START_CLIENT_TICK.register(mc -> {
             if (!active) return;
             guard(mc);
-            if (active) KeyBinding.unpressAll();   // movement / actions locked
+            if (!active) return;
+            KeyBinding.unpressAll();   // movement / actions locked
+            step(mc);
         });
         WorldRenderEvents.START.register(ctx -> frame());
         ClientPlayConnectionEvents.DISCONNECT.register((h, c) -> {
@@ -2481,7 +2484,7 @@ public final class CinematicCamera {
             mc.player.sendMessage(Text.literal("Go to the Ice Shop first, then type #cinematic"), true);
             return;
         }
-        double[] eye = playerPose(mc);
+        double[] eye = orbitPose(0, 0.0);   // fixed opening shot: never depends on where the player is looking
         savedYaw = mc.player.getYaw();
         savedPitch = mc.player.getPitch();
         oldHudHidden = mc.options.hudHidden;
@@ -2513,9 +2516,9 @@ public final class CinematicCamera {
         segIndex = 0;
         lastPose = eye;
         segStartPose = eye;
-        segStartNs = System.nanoTime();
+        segTime = 0;
         active = true;
-        place(eye);
+        place(eye, eye);
         mc.setCameraEntity(camEntity);
         KeyBinding.unpressAll();
     }
@@ -2533,8 +2536,12 @@ public final class CinematicCamera {
         }
         mc.options.hudHidden = oldHudHidden;
         if (oldPerspective != null) mc.options.setPerspective(oldPerspective);
-        if (double_ != null && mc.world != null) mc.world.removeEntity(DOUBLE_ID, Entity.RemovalReason.DISCARDED);
-        double_ = null;
+        if (double_ != null) {
+            int id = double_.getId();
+            double_.discard();
+            if (mc.world != null) mc.world.removeEntity(id, Entity.RemovalReason.DISCARDED);
+            double_ = null;
+        }
         camEntity = null;
         segs = null;
         KeyBinding.unpressAll();
@@ -2556,53 +2563,58 @@ public final class CinematicCamera {
     }
 
     // ------------------------------------------------------------------------------------------------ per frame
+    /** Per render frame: keep the real player from turning with the mouse, hide the double when the camera is close. */
     private static void frame() {
         if (!active) return;
         MinecraftClient mc = MinecraftClient.getInstance();
         guard(mc);
         if (!active) return;
-        // mouse look must not turn the player during the cutscene
         mc.player.setYaw(savedYaw);
         mc.player.setPitch(savedPitch);
         mc.player.prevYaw = savedYaw;
         mc.player.prevPitch = savedPitch;
         mc.player.setVelocity(0, mc.player.getVelocity().y, 0);
-        double t = (System.nanoTime() - segStartNs) / 1.0e9;
+        if (double_ != null && camEntity != null) {
+            double dx = camEntity.getX() - double_.getX(), dy = camEntity.getEyeY() - double_.getEyeY(), dz = camEntity.getZ() - double_.getZ();
+            double_.setInvisible(dx * dx + dy * dy + dz * dz < 2.6 * 2.6);
+        }
+    }
+
+    /**
+     * One step per game tick. The camera entity moves from the previous tick's pose to the new one, and vanilla then
+     * interpolates between them with the partial tick, which is what makes the shot perfectly smooth.
+     */
+    private static void step(MinecraftClient mc) {
+        segTime += DT;
         Seg s = segs.get(segIndex);
-        while (t >= s.dur()) {
-            // finish this segment exactly, then roll into the next one without losing time
+        while (segTime >= s.dur()) {
             lastPose = s.fn().at(segStartPose, 1.0);
             segIndex++;
             if (segIndex >= segs.size()) {
                 stop();
                 return;
             }
-            segStartNs += (long) (s.dur() * 1.0e9);
             segStartPose = lastPose;
-            t -= s.dur();
+            segTime -= s.dur();
             s = segs.get(segIndex);
         }
-        double[] pose = s.fn().at(segStartPose, t / s.dur());
+        double[] pose = s.fn().at(segStartPose, segTime / s.dur());
+        // continuous yaw (vanilla interpolates yaw linearly, so a 180 -> -180 jump would spin the camera)
+        pose[3] = lastPose[3] + MathHelper.wrapDegrees(pose[3] - lastPose[3]);
+        place(lastPose, pose);
         lastPose = pose;
-        place(pose);
-        if (double_ != null) {
-            // the double must not be seen from inside: hide it when the camera is close (start and end of the shot)
-            double dx = pose[0] - double_.getX(), dy = pose[1] - double_.getEyeY(), dz = pose[2] - double_.getZ();
-            double_.setInvisible(dx * dx + dy * dy + dz * dz < 2.6 * 2.6);
-        }
     }
 
-    private static void place(double[] p) {
+    private static void place(double[] prev, double[] cur) {
         float eye = camEntity.getEyeHeight(EntityPose.STANDING);
-        double y = p[1] - eye;
-        camEntity.setPosition(p[0], y, p[2]);
-        camEntity.prevX = camEntity.lastRenderX = p[0];
-        camEntity.prevY = camEntity.lastRenderY = y;
-        camEntity.prevZ = camEntity.lastRenderZ = p[2];
-        camEntity.setYaw((float) p[3]);
-        camEntity.setPitch((float) p[4]);
-        camEntity.prevYaw = (float) p[3];
-        camEntity.prevPitch = (float) p[4];
+        camEntity.setPosition(cur[0], cur[1] - eye, cur[2]);
+        camEntity.prevX = camEntity.lastRenderX = prev[0];
+        camEntity.prevY = camEntity.lastRenderY = prev[1] - eye;
+        camEntity.prevZ = camEntity.lastRenderZ = prev[2];
+        camEntity.setYaw((float) cur[3]);
+        camEntity.setPitch((float) cur[4]);
+        camEntity.prevYaw = (float) prev[3];
+        camEntity.prevPitch = (float) prev[4];
     }
 
     // ------------------------------------------------------------------------------------------------ sequence
@@ -2616,7 +2628,7 @@ public final class CinematicCamera {
         for (int i = 0; i < show.length; i++) {
             final int idx = i;
             // glide to the start of the orbit
-            list.add(new Seg(i == 0 ? 2.0 : 1.6, (s, u) -> blend(s, orbitPose(idx, 0.0), cubic(u))));
+            if (i > 0) list.add(new Seg(1.6, (s, u) -> blend(s, orbitPose(idx, 0.0), cubic(u))));
             // the 360-degree orbit: 3.5 s per Yantra, 4 s for the van
             list.add(new Seg(i == 4 ? 4.0 : 3.5, (s, u) -> orbitPose(idx, u)));
         }
