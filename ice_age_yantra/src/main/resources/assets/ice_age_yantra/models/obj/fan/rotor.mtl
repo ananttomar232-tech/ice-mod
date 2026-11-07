@@ -1,0 +1,9 @@
+newmtl fan_blade
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fan_blade
+
+newmtl fan_chrome
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fan_chrome

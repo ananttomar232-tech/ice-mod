@@ -1,0 +1,17 @@
+{
+  "loader": "forge:obj",
+  "model": "ice_age_yantra:models/obj/fridge/door_top.obj",
+  "flip_v": false,
+  "emissive_ambient": true,
+  "automatic_culling": false,
+  "shade_quads": true,
+  "ambientocclusion": false,
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "particle": "ice_age_yantra:block/fridge_bin",
+    "fridge_bin": "ice_age_yantra:block/fridge_bin",
+    "fridge_bottle": "ice_age_yantra:block/fridge_bottle",
+    "fridge_liner": "ice_age_yantra:block/fridge_liner",
+    "fridge_main": "ice_age_yantra:block/fridge_main"
+  }
+}

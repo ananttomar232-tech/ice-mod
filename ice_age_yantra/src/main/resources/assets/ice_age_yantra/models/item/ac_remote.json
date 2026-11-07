@@ -1,0 +1,141 @@
+{
+  "loader": "forge:obj",
+  "model": "ice_age_yantra:models/obj/remote/base.obj",
+  "flip_v": false,
+  "emissive_ambient": true,
+  "automatic_culling": false,
+  "shade_quads": true,
+  "ambientocclusion": false,
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "particle": "ice_age_yantra:block/remote_body",
+    "remote_bezel": "ice_age_yantra:block/remote_bezel",
+    "remote_body": "ice_age_yantra:block/remote_body",
+    "remote_button": "ice_age_yantra:block/remote_button",
+    "remote_face": "ice_age_yantra:block/remote_face",
+    "remote_keys": "ice_age_yantra:block/remote_keys",
+    "remote_lcd": "ice_age_yantra:block/remote_lcd",
+    "remote_power": "ice_age_yantra:block/remote_power"
+  },
+  "display": {
+    "gui": {
+      "rotation": [
+        35,
+        200,
+        30
+      ],
+      "translation": [
+        0,
+        0.5,
+        0
+      ],
+      "scale": [
+        0.95,
+        0.95,
+        0.95
+      ]
+    },
+    "ground": {
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "translation": [
+        0,
+        2,
+        0
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "fixed": {
+      "rotation": [
+        -90,
+        0,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        -3
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        -60,
+        0,
+        0
+      ],
+      "translation": [
+        0,
+        3,
+        1
+      ],
+      "scale": [
+        0.7,
+        0.7,
+        0.7
+      ]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [
+        -60,
+        0,
+        0
+      ],
+      "translation": [
+        0,
+        3,
+        1
+      ],
+      "scale": [
+        0.7,
+        0.7,
+        0.7
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        -25,
+        170,
+        0
+      ],
+      "translation": [
+        1,
+        2,
+        -1
+      ],
+      "scale": [
+        0.8,
+        0.8,
+        0.8
+      ]
+    },
+    "firstperson_lefthand": {
+      "rotation": [
+        -25,
+        190,
+        0
+      ],
+      "translation": [
+        1,
+        2,
+        -1
+      ],
+      "scale": [
+        0.8,
+        0.8,
+        0.8
+      ]
+    }
+  }
+}

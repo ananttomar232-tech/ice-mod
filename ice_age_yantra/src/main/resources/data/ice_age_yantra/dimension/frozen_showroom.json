@@ -1,0 +1,13 @@
+{
+  "type": "ice_age_yantra:frozen_showroom",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "biome": "ice_age_yantra:frozen_showroom",
+      "lakes": false,
+      "features": false,
+      "layers": [],
+      "structure_overrides": []
+    }
+  }
+}

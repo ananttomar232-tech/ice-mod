@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_column",
+  "textures": {
+    "end": "ice_age_yantra:block/ice_pillar_top",
+    "side": "ice_age_yantra:block/ice_pillar_side"
+  }
+}

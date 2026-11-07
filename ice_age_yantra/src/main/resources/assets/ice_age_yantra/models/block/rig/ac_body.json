@@ -1,0 +1,17 @@
+{
+  "loader": "forge:obj",
+  "model": "ice_age_yantra:models/obj/ac/body.obj",
+  "flip_v": false,
+  "emissive_ambient": true,
+  "automatic_culling": false,
+  "shade_quads": true,
+  "ambientocclusion": false,
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "particle": "ice_age_yantra:block/ac_body",
+    "ac_body": "ice_age_yantra:block/ac_body",
+    "ac_bracket": "ice_age_yantra:block/ac_bracket",
+    "ac_grille": "ice_age_yantra:block/ac_grille",
+    "ac_sticker": "ice_age_yantra:block/ac_sticker"
+  }
+}

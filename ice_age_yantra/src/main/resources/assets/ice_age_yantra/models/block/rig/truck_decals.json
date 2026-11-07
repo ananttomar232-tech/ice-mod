@@ -1,0 +1,15 @@
+{
+  "loader": "forge:obj",
+  "model": "ice_age_yantra:models/obj/truck/decals.obj",
+  "flip_v": false,
+  "emissive_ambient": true,
+  "automatic_culling": false,
+  "shade_quads": true,
+  "ambientocclusion": false,
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "particle": "ice_age_yantra:block/truck_menu",
+    "truck_menu": "ice_age_yantra:block/truck_menu",
+    "truck_sign": "ice_age_yantra:block/truck_sign"
+  }
+}

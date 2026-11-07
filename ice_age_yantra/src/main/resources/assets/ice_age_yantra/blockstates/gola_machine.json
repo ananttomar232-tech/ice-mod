@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "ice_age_yantra:block/gola_machine"
+    },
+    "facing=east": {
+      "model": "ice_age_yantra:block/gola_machine",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "ice_age_yantra:block/gola_machine",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "ice_age_yantra:block/gola_machine",
+      "y": 270
+    }
+  }
+}

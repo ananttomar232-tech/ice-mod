@@ -1,0 +1,18 @@
+{
+  "replace": false,
+  "values": [
+    "ice_age_yantra:gola_machine",
+    "ice_age_yantra:farrata_fan",
+    "ice_age_yantra:retro_fridge",
+    "ice_age_yantra:ac_unit",
+    "ice_age_yantra:ice_portal",
+    "ice_age_yantra:icicle_chandelier",
+    "ice_age_yantra:permafrost_ice",
+    "ice_age_yantra:frost_bricks",
+    "ice_age_yantra:glacier_tiles",
+    "ice_age_yantra:aurora_ice",
+    "ice_age_yantra:packed_frost",
+    "ice_age_yantra:ice_pillar",
+    "ice_age_yantra:frosted_glass"
+  ]
+}

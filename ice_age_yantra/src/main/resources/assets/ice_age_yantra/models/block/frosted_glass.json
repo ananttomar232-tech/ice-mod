@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "ice_age_yantra:block/frosted_glass"
+  },
+  "render_type": "minecraft:translucent"
+}

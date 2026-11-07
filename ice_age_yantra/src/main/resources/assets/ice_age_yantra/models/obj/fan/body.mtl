@@ -1,0 +1,19 @@
+newmtl fan_body
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fan_body
+
+newmtl fan_panel
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fan_panel
+
+newmtl fan_keys
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fan_keys
+
+newmtl fan_nameplate
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fan_nameplate

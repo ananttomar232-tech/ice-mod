@@ -1,0 +1,34 @@
+newmtl remote_body
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #remote_body
+
+newmtl remote_face
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #remote_face
+
+newmtl remote_bezel
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #remote_bezel
+
+newmtl remote_lcd
+Kd 1.0 1.0 1.0 1.0
+Ka 1.0 1.0 1.0 1.0
+map_Kd #remote_lcd
+
+newmtl remote_power
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #remote_power
+
+newmtl remote_button
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #remote_button
+
+newmtl remote_keys
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #remote_keys

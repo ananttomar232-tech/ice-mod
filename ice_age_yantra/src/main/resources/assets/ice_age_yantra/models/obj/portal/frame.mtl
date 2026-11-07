@@ -1,0 +1,19 @@
+newmtl portal_crystal
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #portal_crystal
+
+newmtl portal_core
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #portal_core
+
+newmtl portal_icicle
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #portal_icicle
+
+newmtl portal_glow
+Kd 1.0 1.0 1.0 1.0
+Ka 1.0 1.0 1.0 1.0
+map_Kd #portal_glow

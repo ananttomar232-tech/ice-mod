@@ -1,0 +1,24 @@
+newmtl cone_stand
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #cone_stand
+
+newmtl cone_waffle
+Kd 1.0 1.0 1.0 1.0
+Ka 1.0 1.0 1.0 1.0
+map_Kd #cone_waffle
+
+newmtl icecream_swirl
+Kd 1.0 1.0 1.0 1.0
+Ka 1.0 1.0 1.0 1.0
+map_Kd #icecream_swirl
+
+newmtl cone_cherry
+Kd 1.0 1.0 1.0 1.0
+Ka 1.0 1.0 1.0 1.0
+map_Kd #cone_cherry
+
+newmtl sprinkles
+Kd 1.0 1.0 1.0 1.0
+Ka 1.0 1.0 1.0 1.0
+map_Kd #sprinkles

@@ -1,0 +1,19 @@
+{
+  "loader": "forge:obj",
+  "model": "ice_age_yantra:models/obj/fridge/body.obj",
+  "flip_v": false,
+  "emissive_ambient": true,
+  "automatic_culling": false,
+  "shade_quads": true,
+  "ambientocclusion": false,
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "particle": "ice_age_yantra:block/fridge_back",
+    "fridge_back": "ice_age_yantra:block/fridge_back",
+    "fridge_freezer": "ice_age_yantra:block/fridge_freezer",
+    "fridge_gasket": "ice_age_yantra:block/fridge_gasket",
+    "fridge_light": "ice_age_yantra:block/fridge_light",
+    "fridge_liner": "ice_age_yantra:block/fridge_liner",
+    "fridge_main": "ice_age_yantra:block/fridge_main"
+  }
+}

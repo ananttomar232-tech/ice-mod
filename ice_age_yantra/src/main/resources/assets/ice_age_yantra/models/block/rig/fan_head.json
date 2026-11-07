@@ -1,0 +1,16 @@
+{
+  "loader": "forge:obj",
+  "model": "ice_age_yantra:models/obj/fan/head.obj",
+  "flip_v": false,
+  "emissive_ambient": true,
+  "automatic_culling": false,
+  "shade_quads": true,
+  "ambientocclusion": false,
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "particle": "ice_age_yantra:block/gola_chrome",
+    "fan_badge_ring": "ice_age_yantra:block/gola_chrome",
+    "fan_body": "ice_age_yantra:block/fan_body",
+    "fan_chrome": "ice_age_yantra:block/gola_chrome"
+  }
+}

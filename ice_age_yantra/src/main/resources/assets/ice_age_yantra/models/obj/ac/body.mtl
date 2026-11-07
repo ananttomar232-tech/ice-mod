@@ -1,0 +1,19 @@
+newmtl ac_body
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #ac_body
+
+newmtl ac_bracket
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #ac_bracket
+
+newmtl ac_grille
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #ac_grille
+
+newmtl ac_sticker
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #ac_sticker

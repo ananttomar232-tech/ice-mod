@@ -1,0 +1,18 @@
+{
+  "loader": "forge:obj",
+  "model": "ice_age_yantra:models/obj/truck/cone.obj",
+  "flip_v": false,
+  "emissive_ambient": true,
+  "automatic_culling": false,
+  "shade_quads": true,
+  "ambientocclusion": false,
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "particle": "ice_age_yantra:block/cone_cherry",
+    "cone_cherry": "ice_age_yantra:block/cone_cherry",
+    "cone_stand": "ice_age_yantra:block/gola_chrome",
+    "cone_waffle": "ice_age_yantra:block/cone_waffle",
+    "icecream_swirl": "ice_age_yantra:block/icecream_swirl",
+    "sprinkles": "ice_age_yantra:block/sprinkles"
+  }
+}

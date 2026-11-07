@@ -1,0 +1,19 @@
+newmtl fridge_main
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fridge_main
+
+newmtl fridge_liner
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fridge_liner
+
+newmtl fridge_bin
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fridge_bin
+
+newmtl fridge_bottle
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #fridge_bottle

@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "tier=1": {
+      "model": "ice_age_yantra:block/showcase_pedestal"
+    },
+    "tier=2": {
+      "model": "ice_age_yantra:block/showcase_pedestal"
+    },
+    "tier=3": {
+      "model": "ice_age_yantra:block/showcase_pedestal"
+    },
+    "tier=4": {
+      "model": "ice_age_yantra:block/showcase_pedestal"
+    },
+    "tier=5": {
+      "model": "ice_age_yantra:block/showcase_pedestal"
+    }
+  }
+}

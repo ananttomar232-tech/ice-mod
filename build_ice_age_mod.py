@@ -1031,12 +1031,27 @@ def build_truck(zip_path):
         else:
             body_idx.append(c)
     body = s.select(np.concatenate(body_idx))
+    # windows: triangles whose texture swatch is the dark window blue become real tinted glass
+    tex = np.asarray(g.image(0).convert('RGB'), dtype=np.float64) / 255.0
+    th, tw = tex.shape[:2]
+    cuv = body.UV.mean(axis=1)
+    px = np.clip((cuv[:, 0] * tw).astype(int), 0, tw - 1)
+    py = np.clip((cuv[:, 1] * th).astype(int), 0, th - 1)
+    c = tex[py, px]
+    is_glass = (c[:, 2] > 0.30) & (c[:, 0] < 0.25) & (c[:, 1] < 0.40) & (c[:, 2] > c[:, 0] + 0.15)
+    glass = body.select(is_glass).copy('truck_glass')
+    gl, gh = (glass.P.reshape(-1, 3).min(0), glass.P.reshape(-1, 3).max(0)) if len(glass.P) else (np.zeros(3), np.ones(3))
+    body = body.select(~is_glass)
     # normalise: front (-Z) -> +Z (entity forward), wheels on y=0. 0.0036 blocks per unit keeps the
     # third-person camera (4 blocks behind the driver) outside the van body.
     sc = 0.0036
     k = sc / 0.005
     M = mat_scale(sc) @ mat_rot_y(180) @ mat_translate(0, 28.83, 0)
     rig.parts['body'] = [body.transformed(M)]
+    if len(glass.P):
+        gsurf = glass.transformed(M)
+        box_uv(gsurf, gsurf.P.reshape(-1, 3).min(0), float(np.ptp(gsurf.P.reshape(-1, 3), axis=0).max()) + 1e-6)
+        rig.parts['glass'] = [gsurf]
     wheel_names = []
     for c in wheels:
         w = s.select(c).transformed(M)
@@ -2075,6 +2090,15 @@ def tex_sprinkles():
     return clamp(img * (0.85 + 0.25 * np.sin(Y * math.pi)[..., None]))
 
 
+def tex_truck_glass():
+    """Tinted windscreen glass with soft sky reflection streaks (rendered translucent)."""
+    h = w = 256
+    Y, X = grid(h, w)
+    base = ramp(clamp(Y * 0.8 + 0.1 * fbm(h, w, 3, 3, 351)), [(0, '#cfeaff'), (0.6, '#7fb8e8'), (1, '#3a6fb0')])
+    streak = np.exp(-((X * 0.8 + Y - 0.55) ** 2) / 0.006) * 0.55 + np.exp(-((X * 0.8 + Y - 0.8) ** 2) / 0.002) * 0.35
+    return clamp(base + streak[..., None])
+
+
 def tex_truck_sign():
     h, w = 512, 1024
     Y, X = grid(h, w)
@@ -2706,7 +2730,7 @@ def all_textures():
         'block/fridge_gasket': tex_fridge_gasket, 'block/fridge_light': tex_fridge_light, 'block/fridge_bin': tex_fridge_bin,
         'block/fridge_bottle': tex_fridge_bottle,
         'block/cone_waffle': tex_cone_waffle, 'block/icecream_swirl': tex_icecream_swirl, 'block/cone_cherry': tex_cone_cherry,
-        'block/sprinkles': tex_sprinkles, 'block/truck_sign': tex_truck_sign, 'block/truck_menu': tex_truck_menu,
+        'block/sprinkles': tex_sprinkles, 'block/truck_sign': tex_truck_sign, 'block/truck_glass': tex_truck_glass, 'block/truck_menu': tex_truck_menu,
         'block/portal_crystal': tex_portal_crystal, 'block/portal_core': tex_portal_core,
         'block/portal_icicle': tex_portal_icicle, 'block/portal_glow': tex_portal_glow,
         'block/pedestal_ice': tex_pedestal_ice, 'block/pedestal_glow': tex_pedestal_glow,
@@ -3065,15 +3089,15 @@ LANG = {
     "hud.ice_age_yantra.tag.owned": "✔ OWNED - right-click to buy again",
     "hud.ice_age_yantra.tag.buy": "▶ RIGHT-CLICK TO BUY ◀",
     "hud.ice_age_yantra.tag.locked": "LOCKED - freeze %s more blocks",
-    "hud.ice_age_yantra.showroom_title": "❄ YANTRA PROGRESSION SHOP ❄",
+    "hud.ice_age_yantra.showroom_title": "YANTRA PROGRESSION SHOP",
     "hud.ice_age_yantra.showroom_sub": "Walk up to a pedestal and right-click to buy",
-    "hud.ice_age_yantra.banner.target": "❄ TARGET REACHED ❄",
+    "hud.ice_age_yantra.banner.target": "TARGET REACHED!",
     "hud.ice_age_yantra.banner.target_sub": "%s stopped at %s - %s unlocked!",
     "hud.ice_age_yantra.banner.purchase": "YANTRA ACQUIRED!",
     "hud.ice_age_yantra.banner.climax": "10,000,000 BLOCKS FROZEN!",
     "hud.ice_age_yantra.banner.climax_sub": "THE ICE AGE HAS ARRIVED!",
     "gui.ice_age_yantra.shop.title": "YANTRA PROGRESSION SHOP",
-    "gui.ice_age_yantra.shop.showroom": "❄ Enter Frozen Showroom",
+    "gui.ice_age_yantra.shop.showroom": "Enter Frozen Showroom",
     "gui.ice_age_yantra.shop.close": "Close",
     "gui.ice_age_yantra.shop.hint": "Every Yantra stops when you can afford the next one",
 }
@@ -6590,7 +6614,7 @@ public final class ObjParts {
     public static final ResourceLocation AC_BODY = part("ac_body"), AC_ROTOR = part("ac_rotor");
     public static final ResourceLocation TRUCK_BODY = part("truck_body"), TRUCK_CONE = part("truck_cone"), TRUCK_WHEEL_FL = part("truck_wheel_fl"),
             TRUCK_WHEEL_FR = part("truck_wheel_fr"), TRUCK_WHEEL_RL = part("truck_wheel_rl"), TRUCK_WHEEL_RR = part("truck_wheel_rr"),
-            TRUCK_DECALS = part("truck_decals");
+            TRUCK_DECALS = part("truck_decals"), TRUCK_GLASS = part("truck_glass");
     public static final ResourceLocation SHOP_ORB = part("shop_orb_base");
 
     private ObjParts() {
@@ -6695,8 +6719,8 @@ public final class ShowroomRenderers {
                 case GOLA -> 2.35f;
                 case FAN -> 2.35f;
                 case FRIDGE -> 2.6f;
-                case AC -> 2.0f;
-                case VAN -> 3.0f;
+                case AC -> 2.45f;
+                case VAN -> 3.65f;
             };
             YantraRig.glow(ps, buf, 0.5, 1.6 + bob, 0.5, tier == Tier.VAN ? 4.2f : 2.0f, cr, cg, cb, 0.28f);
 
@@ -7062,6 +7086,8 @@ public final class YantraRig {
         wheel(ps, buf, ObjParts.TRUCK_WHEEL_FR, RigData.TRUCK_WHEEL_FR_X, RigData.TRUCK_WHEEL_FR_Y, RigData.TRUCK_WHEEL_FR_Z, wheelAngle, steer, light, overlay);
         wheel(ps, buf, ObjParts.TRUCK_WHEEL_RL, RigData.TRUCK_WHEEL_RL_X, RigData.TRUCK_WHEEL_RL_Y, RigData.TRUCK_WHEEL_RL_Z, wheelAngle, 0, light, overlay);
         wheel(ps, buf, ObjParts.TRUCK_WHEEL_RR, RigData.TRUCK_WHEEL_RR_X, RigData.TRUCK_WHEEL_RR_Y, RigData.TRUCK_WHEEL_RR_Z, wheelAngle, 0, light, overlay);
+        // tinted see-through windscreen + windows (the driver can see out in first person)
+        ObjParts.render(ps, buf, ObjParts.TRUCK_GLASS, light, overlay, 0.85f, 0.95f, 1.0f, 0.42f);
         // the glowing giant ice cream cone (full bright, gentle bob + pulse)
         float pulse = 0.88f + 0.12f * Mth.sin(time * 0.15f);
         ps.pushPose();

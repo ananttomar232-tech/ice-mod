@@ -1,0 +1,39 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="All Rights Reserved (code) / CC-BY-4.0 (adapted 3D models)"
+
+[[mods]]
+modId="ice_age_yantra"
+version="1.0.0"
+displayName="Ice Age Yantra Mod"
+authors="Ice Age Yantra Team"
+description='''
+Freeze the whole world with five comedic Yantras!
+ 1. Desi Baraf Gola machine  2. Farrata 3-speed table fan  3. Retro fridge (+ a very relieved villager)
+ 4. Split AC with 16 C TURBO remote  5. Musical ice cream van that paves a 10-wide blue ice highway.
+Every Yantra stops automatically the moment you can afford the next one. Goal: 10,000,000 blocks frozen.
+
+3D models (CC-BY-4.0, adapted: re-rigged, re-textured, ambient-occlusion baked):
+ * "Ice shaver" by VeinSyct - https://sketchfab.com/3d-models/ice-shaver-81f8e0fb483e4d3b8eaf5d61339b4204
+ * "80s Desk Fan Low Poly" by lucasalic99 - https://sketchfab.com/3d-models/80s-desk-fan-low-poly-612736f7659d451e811c967c8fea370b
+ * "Damaged retro refrigerator low poly" by ViktorianWios - https://sketchfab.com/3d-models/damaged-retro-refrigerator-low-poly-48c2a8bfe5cf43178e91f791bce4fb89
+ * "External Air-Conditioner Unit" by Luuluubell - https://sketchfab.com/3d-models/external-air-conditioner-unit-885b4a83ad1a4db792715ba24c7a5d57
+ * "Low Poly Ice Cream Truck." by its_sagar_bro - https://sketchfab.com/3d-models/low-poly-ice-cream-truck-37ed6bca176049a0bfb5f88e15b612c4
+ Licence: Creative Commons Attribution 4.0 - http://creativecommons.org/licenses/by/4.0/
+All textures, procedural models (portal, pedestal, chandelier, remote, giant cone), sounds and music were generated
+procedurally by build_ice_age_mod.py and are original.
+'''
+
+[[dependencies.ice_age_yantra]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.ice_age_yantra]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.21)"
+    ordering="NONE"
+    side="BOTH"

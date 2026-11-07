@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "ice_age_yantra:item/ice_cream_van_spawn_egg"
+  }
+}

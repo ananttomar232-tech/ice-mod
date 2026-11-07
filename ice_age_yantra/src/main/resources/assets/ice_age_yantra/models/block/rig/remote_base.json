@@ -1,0 +1,20 @@
+{
+  "loader": "forge:obj",
+  "model": "ice_age_yantra:models/obj/remote/base.obj",
+  "flip_v": false,
+  "emissive_ambient": true,
+  "automatic_culling": false,
+  "shade_quads": true,
+  "ambientocclusion": false,
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "particle": "ice_age_yantra:block/remote_bezel",
+    "remote_bezel": "ice_age_yantra:block/remote_bezel",
+    "remote_body": "ice_age_yantra:block/remote_body",
+    "remote_button": "ice_age_yantra:block/remote_button",
+    "remote_face": "ice_age_yantra:block/remote_face",
+    "remote_keys": "ice_age_yantra:block/remote_keys",
+    "remote_lcd": "ice_age_yantra:block/remote_lcd",
+    "remote_power": "ice_age_yantra:block/remote_power"
+  }
+}

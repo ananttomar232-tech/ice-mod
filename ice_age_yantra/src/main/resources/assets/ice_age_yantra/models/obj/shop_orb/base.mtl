@@ -1,0 +1,19 @@
+newmtl portal_crystal
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #portal_crystal
+
+newmtl portal_core
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #portal_core
+
+newmtl orb_vortex
+Kd 1.0 1.0 1.0 1.0
+Ka 1.0 1.0 1.0 1.0
+map_Kd #orb_vortex
+
+newmtl pedestal_ice
+Kd 1.0 1.0 1.0 1.0
+Ka 0.0 0.0 0.0 0.0
+map_Kd #pedestal_ice

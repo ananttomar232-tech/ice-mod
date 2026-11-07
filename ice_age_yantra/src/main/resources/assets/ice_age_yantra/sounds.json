@@ -1,0 +1,226 @@
+{
+  "van_jingle": {
+    "subtitle": "subtitles.ice_age_yantra.van_jingle",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:van_jingle",
+        "stream": true
+      }
+    ]
+  },
+  "van_honk": {
+    "subtitle": "subtitles.ice_age_yantra.van_honk",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:van_honk"
+      }
+    ]
+  },
+  "handle_pop": {
+    "subtitle": "subtitles.ice_age_yantra.handle_pop",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:handle_pop"
+      }
+    ]
+  },
+  "crank": {
+    "subtitle": "subtitles.ice_age_yantra.crank",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:crank"
+      }
+    ]
+  },
+  "squeak": {
+    "subtitle": "subtitles.ice_age_yantra.squeak",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:squeak"
+      }
+    ]
+  },
+  "sputter": {
+    "subtitle": "subtitles.ice_age_yantra.sputter",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:sputter"
+      }
+    ]
+  },
+  "wheel_spin": {
+    "subtitle": "subtitles.ice_age_yantra.wheel_spin",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:wheel_spin"
+      }
+    ]
+  },
+  "fan_roar": {
+    "subtitle": "subtitles.ice_age_yantra.fan_roar",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:fan_roar"
+      }
+    ]
+  },
+  "fan_whoosh": {
+    "subtitle": "subtitles.ice_age_yantra.fan_whoosh",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:fan_whoosh"
+      }
+    ]
+  },
+  "fridge_open": {
+    "subtitle": "subtitles.ice_age_yantra.fridge_open",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:fridge_open"
+      }
+    ]
+  },
+  "fridge_slam": {
+    "subtitle": "subtitles.ice_age_yantra.fridge_slam",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:fridge_slam"
+      }
+    ]
+  },
+  "ac_blizzard": {
+    "subtitle": "subtitles.ice_age_yantra.ac_blizzard",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:ac_blizzard"
+      }
+    ]
+  },
+  "remote_beep": {
+    "subtitle": "subtitles.ice_age_yantra.remote_beep",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:remote_beep"
+      }
+    ]
+  },
+  "remote_standby": {
+    "subtitle": "subtitles.ice_age_yantra.remote_standby",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:remote_standby"
+      }
+    ]
+  },
+  "ding": {
+    "subtitle": "subtitles.ice_age_yantra.ding",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:ding"
+      }
+    ]
+  },
+  "freeze": {
+    "subtitle": "subtitles.ice_age_yantra.freeze",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:freeze"
+      }
+    ]
+  },
+  "purchase": {
+    "subtitle": "subtitles.ice_age_yantra.purchase",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:purchase"
+      }
+    ]
+  },
+  "portal_whoosh": {
+    "subtitle": "subtitles.ice_age_yantra.portal_whoosh",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:portal_whoosh"
+      }
+    ]
+  },
+  "target_reached": {
+    "subtitle": "subtitles.ice_age_yantra.target_reached",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:target_reached"
+      }
+    ]
+  },
+  "fanfare": {
+    "subtitle": "subtitles.ice_age_yantra.fanfare",
+    "sounds": [
+      {
+        "name": "ice_age_yantra:fanfare"
+      }
+    ]
+  },
+  "villager_scream": {
+    "subtitle": "subtitles.ice_age_yantra.villager_scream",
+    "sounds": [
+      {
+        "name": "minecraft:mob/villager/hit1",
+        "pitch": 1.55,
+        "volume": 1.0
+      },
+      {
+        "name": "minecraft:mob/villager/hit2",
+        "pitch": 1.6,
+        "volume": 1.0
+      },
+      {
+        "name": "minecraft:mob/villager/hit3",
+        "pitch": 1.7,
+        "volume": 1.0
+      },
+      {
+        "name": "minecraft:mob/villager/hit4",
+        "pitch": 1.5,
+        "volume": 1.0
+      }
+    ]
+  },
+  "villager_relief": {
+    "subtitle": "subtitles.ice_age_yantra.villager_relief",
+    "sounds": [
+      {
+        "name": "minecraft:mob/villager/yes1",
+        "pitch": 0.72,
+        "volume": 0.9
+      },
+      {
+        "name": "minecraft:mob/villager/yes2",
+        "pitch": 0.7,
+        "volume": 0.9
+      },
+      {
+        "name": "minecraft:mob/villager/idle2",
+        "pitch": 0.68,
+        "volume": 0.9
+      }
+    ]
+  },
+  "fridge_rattle": {
+    "subtitle": "subtitles.ice_age_yantra.fridge_rattle",
+    "sounds": [
+      {
+        "name": "minecraft:block/chain/break1",
+        "pitch": 1.3
+      },
+      {
+        "name": "minecraft:block/chain/break2",
+        "pitch": 1.2
+      },
+      {
+        "name": "minecraft:block/iron_door/close1",
+        "pitch": 1.4,
+        "volume": 0.6
+      }
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "ice_age_yantra:item/chill_villager_spawn_egg"
+  }
+}

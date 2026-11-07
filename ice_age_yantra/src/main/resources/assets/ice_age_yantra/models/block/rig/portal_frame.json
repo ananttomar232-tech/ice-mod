@@ -1,0 +1,17 @@
+{
+  "loader": "forge:obj",
+  "model": "ice_age_yantra:models/obj/portal/frame.obj",
+  "flip_v": false,
+  "emissive_ambient": true,
+  "automatic_culling": false,
+  "shade_quads": true,
+  "ambientocclusion": false,
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "particle": "ice_age_yantra:block/portal_core",
+    "portal_core": "ice_age_yantra:block/portal_core",
+    "portal_crystal": "ice_age_yantra:block/portal_crystal",
+    "portal_glow": "ice_age_yantra:block/portal_glow",
+    "portal_icicle": "ice_age_yantra:block/portal_icicle"
+  }
+}

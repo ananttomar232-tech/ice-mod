@@ -1,0 +1,15 @@
+{
+  "loader": "forge:obj",
+  "model": "ice_age_yantra:models/obj/gola/wheel.obj",
+  "flip_v": false,
+  "emissive_ambient": true,
+  "automatic_culling": false,
+  "shade_quads": true,
+  "ambientocclusion": false,
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "particle": "ice_age_yantra:block/gola_chrome",
+    "gola_chrome": "ice_age_yantra:block/gola_chrome",
+    "gola_enamel": "ice_age_yantra:block/gola_enamel"
+  }
+}

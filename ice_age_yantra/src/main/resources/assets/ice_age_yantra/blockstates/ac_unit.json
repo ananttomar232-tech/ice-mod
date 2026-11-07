@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "ice_age_yantra:block/ac_unit"
+    },
+    "facing=east": {
+      "model": "ice_age_yantra:block/ac_unit",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "ice_age_yantra:block/ac_unit",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "ice_age_yantra:block/ac_unit",
+      "y": 270
+    }
+  }
+}
